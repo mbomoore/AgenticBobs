@@ -10,10 +10,6 @@ from typing import Dict, List, Optional
 
 from core.pir import PIR
 
-try:  # optional dependency; only used in apps, not in unit tests
-    from viz.bpmn_dmn_component import st_process_viewer  # type: ignore
-except Exception:  # pragma: no cover
-    st_process_viewer = None  # type: ignore
 
 
 def pir_to_mermaid(pir: PIR) -> str:
@@ -71,16 +67,3 @@ def get_representation(pir: PIR, fmt: str) -> Optional[str]:
     """
     return pir.representations.get(fmt)
 
-
-def streamlit_show(pir: PIR, fmt: str = "bpmn+xml", height: int = 520, theme: str = "light") -> Optional[str]:
-    """Render the PIR using the Streamlit BPMN/DMN viewer if available.
-
-    Returns the last clicked element id, or None. Requires Streamlit in environment.
-    """
-    if st_process_viewer is None:
-        raise RuntimeError("Streamlit component not available. Install Streamlit to use this.")
-    xml = get_representation(pir, fmt)
-    if not xml:
-        raise ValueError(f"PIR does not carry representation '{fmt}'")
-    mode = "bpmn" if fmt.startswith("bpmn") else ("dmn" if fmt.startswith("dmn") else "bpmn")
-    return st_process_viewer(xml=xml, mode=mode, height=height, theme=theme, key=f"viz_{mode}")
