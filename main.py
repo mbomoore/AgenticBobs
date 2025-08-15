@@ -11,7 +11,7 @@ import streamlit.components.v1 as components
 from core.adapters.bpmn import parse_bpmn
 from core.pir import validate
 from core.viz import pir_to_mermaid
-from core.ai import chat as ai_chat, extract_bpmn_xml, system_prompt
+from core.ai import chat as ai_chat, extract_bpmn_xml, system_prompt, agent_chat, agent_system_prompt
 
 
 SAMPLE_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
@@ -67,6 +67,8 @@ if "bpmn_text" not in st.session_state:
 col_left, col_right = st.columns([1, 2])
 
 with col_left:
+        # Agent mode toggle
+        agent_mode = st.checkbox("🤖 Agent Mode (Auto-validate BPMN)", value=True, help="When enabled, the AI will automatically validate and fix BPMN errors")
 
         if "chat_messages" not in st.session_state:
                 # Seed with an opening assistant message
@@ -86,7 +88,8 @@ with col_left:
                         st.markdown(user_msg)
 
                 with st.chat_message("assistant"):
-                        with st.spinner("Thinking with Ollama…"):
+                        spinner_text = "🤖 Agent thinking and validating..." if agent_mode else "Thinking with Ollama…"
+                        with st.spinner(spinner_text):
                                 try:
                                         current = st.session_state.bpmn_text or SAMPLE_BPMN
                                         # Add extra instruction to guide behavior, while system_prompt carries the core template
@@ -94,8 +97,16 @@ with col_left:
                                                 "Act as a process improvement consultant. Update the BPMN to reflect the user's intent; make sure you capture cycles and dependencies. "
                                                 "After updating, provide exactly three clarifying questions prefixed Q1:, Q2:, Q3:."
                                         )
-                                        msgs = system_prompt(f"{extra}\n\nUser request: {user_msg}", current)
-                                        reply = ai_chat(msgs)
+                                        
+                                        if agent_mode:
+                                                # Use agent with validation
+                                                msgs = agent_system_prompt(f"{extra}\n\nUser request: {user_msg}", current)
+                                                reply = agent_chat(msgs)
+                                        else:
+                                                # Use traditional chat
+                                                msgs = system_prompt(f"{extra}\n\nUser request: {user_msg}", current)
+                                                reply = ai_chat(msgs)
+                                        
                                         maybe_xml = extract_bpmn_xml(reply)
                                         # Fallback: if no XML, ask again explicitly to output only XML
                                         if not maybe_xml:
