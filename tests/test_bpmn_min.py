@@ -82,3 +82,29 @@ def test_dispatcher_falls_back_without_spiff(monkeypatch):
     # Should have parsed nodes/edges via minimal parser
     assert len(pir.nodes) >= 4
     assert len(pir.edges) == 4
+
+
+def test_user_task_and_variants_parse_as_task():
+        from core.adapters.bpmn_min import from_bpmn_xml
+        from core.pir import validate
+
+        xml = b"""
+        <definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"Defs_UserTask\"> 
+            <process id=\"P\" isExecutable=\"false\"> 
+                <startEvent id=\"s\"/> 
+                <userTask id=\"u1\" name=\"Do it\"/> 
+                <serviceTask id=\"u2\" name=\"Service\"/> 
+                <endEvent id=\"e\"/> 
+                <sequenceFlow id=\"f1\" sourceRef=\"s\" targetRef=\"u1\"/> 
+                <sequenceFlow id=\"f2\" sourceRef=\"u1\" targetRef=\"u2\"/> 
+                <sequenceFlow id=\"f3\" sourceRef=\"u2\" targetRef=\"e\"/> 
+            </process> 
+        </definitions>
+        """
+        pir = from_bpmn_xml(xml)
+        report = validate(pir)
+        assert report["errors"] == []
+        kinds = {n.kind for n in pir.nodes.values()}
+        assert "task" in kinds
+        # ensure specific ids were created
+        assert {"u1", "u2"}.issubset(set(pir.nodes.keys()))
