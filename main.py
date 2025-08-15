@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import traceback
 
 import streamlit as st
@@ -10,12 +11,7 @@ import streamlit.components.v1 as components
 from core.adapters.bpmn import parse_bpmn
 from core.pir import validate
 from core.viz import pir_to_mermaid
-
-# Optional: bpmn.io viewer component
-try:
-        from viz import st_process_viewer  # type: ignore
-except Exception:
-        st_process_viewer = None  # type: ignore
+from core.ai import chat as ai_chat, extract_bpmn_xml, system_prompt
 
 
 SAMPLE_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
@@ -60,65 +56,104 @@ def _mermaid_html(mermaid_code: str) -> str:
 """
 
 
-def _bpmn_html(xml: str, theme: str = "light", height: int = 600) -> str:
-                                # Safely embed XML into JS using JSON string literal to avoid breaking on quotes/newlines
-                                js_xml = json.dumps(xml)
-                                bg_color = "#0f1116" if theme == "dark" else "#ffffff"
-                                return f"""
-<!doctype html>
-<html>
-        <head>
-                <meta charset=\"utf-8\" />
-                <style>
-                        :root {{ --bg: #ffffff; }}
-                        body {{ margin: 0; background: {bg_color}; }}
-                        #canvas {{ width: 100%; height: {height}px; }}
-                </style>
-                <link rel=\"stylesheet\" href=\"https://unpkg.com/bpmn-js@10.5.0/dist/assets/bpmn-js.css\" />
-                <script src=\"https://unpkg.com/bpmn-js@10.5.0/dist/bpmn-navigated-viewer.production.min.js\"></script>
-        </head>
-        <body>
-                <div id=\"canvas\"></div>
-                <script>
-                        const xml = {js_xml};
-                        const viewer = new BpmnJS({{ container: '#canvas' }});
-                        viewer.importXML(xml).then(_ => {{
-                                const canvas = viewer.get('canvas');
-                                canvas.zoom('fit-viewport');
-                        }}).catch(err => {{
-                                document.getElementById('canvas').innerText = 'BPMN load error: ' + err.message;
-                        }});
-                </script>
-        </body>
-</html>
-"""
-
-
-st.set_page_config(page_title="BPMN Previewer", layout="wide")
-st.title("BPMN XML → Diagram Preview")
-st.caption("Paste BPMN 2.0 XML below; we parse to PIR and render a Mermaid diagram.")
+st.set_page_config(page_title="The AI Bobs", layout="wide")
+st.title("The AI Bobs")
+st.caption("(Make a real AI agent that can work for you!)")
 
 if "bpmn_text" not in st.session_state:
         st.session_state.bpmn_text = ""
 
-btns = st.columns([1, 1, 6])
-with btns[0]:
-        if st.button("Load sample BPMN"):
-                st.session_state.bpmn_text = SAMPLE_BPMN
-with btns[1]:
-        if st.button("Clear"):
-                st.session_state.bpmn_text = ""
+# Layout: chat on the left (wide), visualization on the right (narrow)
+col_left, col_right = st.columns([1, 2])
 
-text = st.text_area("BPMN XML", value=st.session_state.bpmn_text, height=300)
-st.session_state.bpmn_text = text
+with col_left:
 
-if st.button("Render diagram"):
-        if not text.strip():
-                st.info("Paste BPMN XML above, or click 'Load sample BPMN'.")
+        if "chat_messages" not in st.session_state:
+                # Seed with an opening assistant message
+                st.session_state.chat_messages = [
+                        {"role": "assistant", "content": "What would you say... you do here?"}
+                ]
+
+        # Show chat history
+        for m in st.session_state.chat_messages:
+                with st.chat_message(m["role"]):
+                        st.markdown(m["content"])  # safe; may include XML fenced code
+
+        user_msg = st.chat_input("Well, Bobs...")
+        if user_msg:
+                st.session_state.chat_messages.append({"role": "user", "content": user_msg})
+                with st.chat_message("user"):
+                        st.markdown(user_msg)
+
+                with st.chat_message("assistant"):
+                        with st.spinner("Thinking with Ollama…"):
+                                try:
+                                        current = st.session_state.bpmn_text or SAMPLE_BPMN
+                                        # Add extra instruction to guide behavior, while system_prompt carries the core template
+                                        extra = (
+                                                "Act as a process improvement consultant. Update the BPMN to reflect the user's intent; make sure you capture cycles and dependencies. "
+                                                "After updating, provide exactly three clarifying questions prefixed Q1:, Q2:, Q3:."
+                                        )
+                                        msgs = system_prompt(f"{extra}\n\nUser request: {user_msg}", current)
+                                        reply = ai_chat(msgs)
+                                        maybe_xml = extract_bpmn_xml(reply)
+                                        # Fallback: if no XML, ask again explicitly to output only XML
+                                        if not maybe_xml:
+                                                msgs2 = msgs + [
+                                                        {
+                                                                "role": "system",
+                                                                "content": (
+                                                                        "Your previous reply did not contain BPMN XML. "
+                                                                        "Respond now with only the final <definitions>...</definitions> block and nothing else."
+                                                                ),
+                                                        }
+                                                ]
+                                                reply = ai_chat(msgs2)
+                                                maybe_xml = extract_bpmn_xml(reply)
+                                except Exception as e:
+                                        st.error(f"Chat failed: {e}")
+                                        st.session_state.chat_messages.append({"role": "assistant", "content": f"Error: {e}"})
+                                else:
+                                        if maybe_xml:
+                                                st.session_state.bpmn_text = maybe_xml
+                                                st.success("BPMN updated.")
+                                                # Extract three follow-up questions (Q1..Q3) and show only those in chat
+                                                qs = []
+                                                for m in re.finditer(r"^\s*(Q[1-3]:.*)$", reply, flags=re.MULTILINE):
+                                                        qs.append(m.group(1).strip())
+                                                if not qs:
+                                                        qs = [
+                                                                "Q1: What are the exact start and end conditions for this process?",
+                                                                "Q2: Who performs each task, and are there approvals, SLAs, or handoffs?",
+                                                                "Q3: What branching rules/exceptions should we include at decision points?",
+                                                        ]
+                                                st.markdown("\n".join(qs))
+                                                st.session_state.chat_messages.append({"role": "assistant", "content": "\n".join(qs)})
+                                        else:
+                                                # No XML; still respond with three clarifying questions only
+                                                st.info("AI didn't return a <definitions> block. Keeping the current diagram.")
+                                                qs = []
+                                                for m in re.finditer(r"^\s*(Q[1-3]:.*)$", reply, flags=re.MULTILINE):
+                                                        qs.append(m.group(1).strip())
+                                                if not qs:
+                                                        qs = [
+                                                                "Q1: What is the precise goal and success criteria for this process?",
+                                                                "Q2: Which roles/systems own each step and what inputs/outputs are required?",
+                                                                "Q3: Are there exceptions, loops, or SLAs that must be modeled?",
+                                                        ]
+                                                st.markdown("\n".join(qs))
+                                                st.session_state.chat_messages.append({"role": "assistant", "content": "\n".join(qs)})
+
+with col_right:
+        # Auto-parse and render Mermaid from current BPMN first
+        current_text = st.session_state.bpmn_text
+        mermaid = None
+        if not current_text.strip():
+                st.info("talk to bob")
         else:
-                with st.spinner("Parsing BPMN…"):
+                with st.spinner("Rendering diagram…"):
                         try:
-                                pir = parse_bpmn(text.encode("utf-8"))
+                                pir = parse_bpmn(current_text.encode("utf-8"))
                                 report = validate(pir)
                                 if report.get("errors"):
                                         st.error("Model has validation errors; fix and try again.")
@@ -126,29 +161,26 @@ if st.button("Render diagram"):
                                                 st.json(report)
                                 else:
                                         mermaid = pir_to_mermaid(pir)
-                                        st.subheader("Visualizations")
-                                        tab_mermaid, tab_bpmn = st.tabs(["Mermaid", "bpmn.io Viewer"]) 
-
-                                        with tab_mermaid:
-                                                st.code(mermaid, language="mermaid")
-                                                components.html(_mermaid_html(mermaid), height=600, scrolling=True)
-
-                                        with tab_bpmn:
-                                                xml = getattr(pir, "representations", {}).get("bpmn+xml")
-                                                if not xml:
-                                                        st.info("PIR does not carry original BPMN XML; cannot render with bpmn.io.")
-                                                elif st_process_viewer is None:
-                                                        st.error("Interactive bpmn.io component is unavailable. Ensure Streamlit is installed and the viz package is present.")
-                                                else:
-                                                        # Keep controls minimal to reduce reruns; the component keeps state with a stable key
-                                                        theme = st.selectbox("Theme", ["light", "dark"], index=0, key="bpmn_theme")
-                                                        height = st.slider("Height (px)", 360, 1000, 600, key="bpmn_height")
-                                                        try:
-                                                                clicked = st_process_viewer(xml=xml, mode="bpmn", height=height, theme=theme, key="bpmn_view")
-                                                                st.caption(f"Last clicked BPMN element ID: {clicked}")
-                                                        except Exception as e:
-                                                                st.error(f"Failed to load interactive viewer: {e}")
+                                        st.subheader("Your process")
+                                        components.html(_mermaid_html(mermaid), height=600, scrolling=True)
                         except Exception as e:
                                 st.error(f"Failed to parse or render BPMN: {e}")
                                 with st.expander("Traceback"):
                                         st.code(traceback.format_exc())
+
+        # Controls and XML editor (below the diagram)
+        ctrl = st.columns([3, 3])
+        with ctrl[0]:
+                if st.button("Load sample BPMN", use_container_width=True):
+                        st.session_state.bpmn_text = SAMPLE_BPMN
+        with ctrl[1]:
+                if st.button("Clear", use_container_width=True):
+                        st.session_state.bpmn_text = ""
+
+        exp = st.expander("BPMN XML (hidden by default)", expanded=False)
+        with exp:
+                text = st.text_area("BPMN XML", value=st.session_state.bpmn_text, height=300)
+                st.session_state.bpmn_text = text
+                if mermaid:
+                        st.markdown("Mermaid (read-only):")
+                        st.code(mermaid, language="mermaid")

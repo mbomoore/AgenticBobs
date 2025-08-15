@@ -17,7 +17,7 @@ except Exception:  # pragma: no cover
 
 
 def pir_to_mermaid(pir: PIR) -> str:
-    lines: List[str] = ["flowchart TD"]
+    lines: List[str] = ["flowchart LR"]
     # Nodes: label with name; fall back to id
     for nid, node in pir.nodes.items():
         label = node.name or nid
