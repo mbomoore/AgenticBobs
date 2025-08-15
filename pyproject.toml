@@ -12,6 +12,7 @@ dependencies = [
     "pytest>=8.4.1",
     "simpy>=4.1.1",
     "streamlit>=1.36.0",
+    "marvin>=3.1.0",
 ]
 
 [dependency-groups]

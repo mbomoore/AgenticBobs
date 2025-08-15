@@ -1,8 +1,8 @@
-"""AI helpers for Ollama chat and BPMN extraction.
+"""AI helpers for Ollama chat and BPMN extraction with Marvin agent framework.
 
 - Uses httpx to converse with a local Ollama server.
 - Provides safe extraction of BPMN XML from model outputs.
-- Supports tool calling for agentic behavior.
+- Uses Marvin for agentic behavior and tool calling.
 """
 from __future__ import annotations
 
@@ -10,10 +10,12 @@ from dataclasses import dataclass
 from typing import Iterable, Optional, Dict, Callable, Any
 import re
 import json
+import os
 
 import httpx
 from cytoolz import curry
 from icecream import ic
+import marvin
 
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
@@ -139,26 +141,30 @@ def agent_system_prompt(instructions: str, bpmn_xml: str) -> list[dict]:
     return [sys_msg, user_msg]
 
 
-# Tool calling system
-ToolFunction = Callable[[str], Dict[str, Any]]
-_TOOLS: Dict[str, ToolFunction] = {}
-
+# Compatibility layer for existing tool system 
+# Provides backwards compatibility while using Marvin underneath
+_LEGACY_TOOLS: Dict[str, Callable] = {}
 
 def register_tool(name: str):
-    """Decorator to register a tool function."""
-    def decorator(func: ToolFunction) -> ToolFunction:
-        _TOOLS[name] = func
+    """Legacy decorator for backwards compatibility with existing tests."""
+    def decorator(func):
+        _LEGACY_TOOLS[name] = func
         return func
     return decorator
 
+def get_available_tools() -> Dict[str, Callable]:
+    """Get legacy tools for backwards compatibility."""
+    # Include our Marvin-based validation function
+    tools = _LEGACY_TOOLS.copy()
+    tools["validate_bpmn"] = validate_bpmn
+    return tools
 
-def get_available_tools() -> Dict[str, ToolFunction]:
-    """Get all registered tools."""
-    return _TOOLS.copy()
-
-
-@register_tool("validate_bpmn")
+# Legacy alias for compatibility
 def validate_bpmn_tool(bpmn_xml: str) -> Dict[str, Any]:
+    """Legacy wrapper for validate_bpmn function."""
+    return validate_bpmn(bpmn_xml)
+# BPMN validation tool - using regular function for direct validation
+def validate_bpmn(bpmn_xml: str) -> Dict[str, Any]:
     """Validate a BPMN XML string and return errors/warnings.
     
     Args:
@@ -187,6 +193,20 @@ def validate_bpmn_tool(bpmn_xml: str) -> Dict[str, Any]:
         }
 
 
+# Marvin-compatible tool version for agent use
+@marvin.fn
+def marvin_validate_bpmn(bpmn_xml: str) -> Dict[str, Any]:
+    """Marvin-compatible BPMN validation tool for use in agent workflows."""
+    return validate_bpmn(bpmn_xml)
+
+
+def _configure_marvin_for_ollama():
+    """Configure Marvin to work with local Ollama server."""
+    # Set up environment variables for Ollama compatibility
+    os.environ.setdefault("OPENAI_API_KEY", "dummy-key")  # Ollama doesn't need real key
+    os.environ.setdefault("OPENAI_BASE_URL", "http://localhost:11434/v1")
+
+
 def agent_chat(
     messages: Iterable[dict],
     *,
@@ -195,12 +215,56 @@ def agent_chat(
     timeout: float = 120.0,
     max_iterations: int = 5,
 ) -> str:
-    """Enhanced chat that can use tools iteratively.
+    """Enhanced chat that can use Marvin agents for BPMN validation.
     
+    Falls back to traditional chat if Marvin is not available or fails.
     The agent will attempt to validate and fix BPMN automatically.
     """
     messages = list(messages)
-    tools = get_available_tools()
+    
+    # Try to use Marvin agent first
+    try:
+        _configure_marvin_for_ollama()
+        
+        # Create a Marvin agent for BPMN validation
+        bpmn_agent = marvin.Agent(
+            name="bpmn_validator",
+            model=model,
+            instructions="""You are a BPMN validation expert. Your task is to modify BPMN 2.0 XML to match user requirements while ensuring it validates correctly.
+            
+            Output format: (1) Valid <definitions>...</definitions> BPMN XML block; (2) Three follow-up questions prefixed Q1:, Q2:, Q3:.
+            
+            You have access to a BPMN validation tool. Use it to check your work and fix any errors iteratively.""",
+            tools=[marvin_validate_bpmn],
+        )
+        
+        # Extract the user's request from messages
+        user_content = ""
+        for msg in messages:
+            if msg.get("role") == "user":
+                user_content += msg.get("content", "") + "\n"
+        
+        # Use Marvin agent - this will automatically handle tool calling
+        response = marvin.run(user_content, agent=bpmn_agent)
+        ic("Marvin agent response", response)
+        return response
+        
+    except Exception as e:
+        ic("Marvin agent failed, falling back to traditional chat", e)
+        # Fall back to original implementation with validation loop
+        return _traditional_agent_chat(messages, model=model, base_url=base_url, timeout=timeout, max_iterations=max_iterations)
+
+
+def _traditional_agent_chat(
+    messages: Iterable[dict],
+    *,
+    model: str = DEFAULT_MODEL,
+    base_url: str = DEFAULT_OLLAMA_URL,
+    timeout: float = 120.0,
+    max_iterations: int = 5,
+) -> str:
+    """Traditional agent chat with manual validation loop as fallback."""
+    messages = list(messages)
     
     for iteration in range(max_iterations):
         ic(f"Agent iteration {iteration + 1}")
@@ -212,8 +276,8 @@ def agent_chat(
         bpmn_xml = extract_bpmn_xml(response)
         
         if bpmn_xml:
-            # Validate the BPMN
-            validation_result = validate_bpmn_tool(bpmn_xml)
+            # Validate the BPMN using our validation function
+            validation_result = validate_bpmn(bpmn_xml)
             
             if validation_result.get("success") and not validation_result.get("errors"):
                 # BPMN is valid, return the response
