@@ -42,6 +42,9 @@ def from_bpmn_xml(xml_bytes: bytes):
         ("endEvent", _tag("endEvent")),
         ("task", _tag("task")),
         ("exclusiveGateway", _tag("exclusiveGateway")),
+        # Support intermediate events used in simple flows
+        ("intermediateThrowEvent", _tag("intermediateThrowEvent")),
+        ("intermediateCatchEvent", _tag("intermediateCatchEvent")),
     ]
 
     # Build node index for quick lookup
