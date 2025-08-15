@@ -11,6 +11,7 @@ class Node:
     kind: str
     name: str
     lane: Optional[str] = None
+    pool: Optional[str] = None
     policy_ref: Optional[str] = None
 
 
@@ -48,6 +49,11 @@ class PIRBuilder:
         self.pir.nodes[kw["id"]] = Node(**kw)
         return self
 
+    def add_pooled_node(self, id: str, kind: str, name: str, pool: str, lane: str = None, **kw):
+        """Convenience method to add a node with pool and lane information."""
+        self.pir.nodes[id] = Node(id=id, kind=kind, name=name, pool=pool, lane=lane, **kw)
+        return self
+
     def add_edge(self, **kw):
         self.pir.edges.append(Edge(**kw))
         return self
@@ -79,6 +85,7 @@ class NodeModel(BaseModel):
     kind: str
     name: str
     lane: Optional[str] = None
+    pool: Optional[str] = None
     policy_ref: Optional[str] = None
 
 
@@ -127,6 +134,7 @@ def validate(pir: PIR) -> dict:
                 kind=n.kind,
                 name=n.name,
                 lane=n.lane,
+                pool=n.pool,
                 policy_ref=n.policy_ref,
             )
             for nid, n in pir.nodes.items()
