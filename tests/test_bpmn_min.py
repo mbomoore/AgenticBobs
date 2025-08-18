@@ -2,7 +2,9 @@ import sys
 from pathlib import Path
 
 import pytest
-
+from core.adapters.bpmn_min import from_bpmn_xml
+from core.pir import validate
+import types
 
 FIXTURE_SIMPLE = b"""
 <?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -27,8 +29,6 @@ FIXTURE_SIMPLE = b"""
 
 
 def test_min_parser_builds_pir_and_validates():
-    from core.adapters.bpmn_min import from_bpmn_xml
-    from core.pir import validate
 
     pir = from_bpmn_xml(FIXTURE_SIMPLE)
     report = validate(pir)
@@ -40,6 +40,8 @@ def test_min_parser_builds_pir_and_validates():
     assert len(pir.edges) == 4
 
 
+<<<<<<< HEAD
+=======
 def test_dispatcher_prefers_spiff_when_available(monkeypatch):
     # Simulate SpiffWorkflow being available by creating fake modules
     import types
@@ -108,3 +110,4 @@ def test_user_task_and_variants_parse_as_task():
         assert "task" in kinds
         # ensure specific ids were created
         assert {"u1", "u2"}.issubset(set(pir.nodes.keys()))
+>>>>>>> origin/main

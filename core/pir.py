@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ValidationError, Field
 from pydantic import model_validator
@@ -13,6 +13,11 @@ class Node:
     lane: Optional[str] = None
     pool: Optional[str] = None
     policy_ref: Optional[str] = None
+    # Extensions for multi-notation support (e.g., ArchiMate)
+    notation: str = "bpmn"  # e.g., "bpmn", "archimate", "dmn"
+    type: Optional[str] = None  # e.g., "bpmn:task", "archimate:BusinessProcess"
+    parent: Optional[str] = None  # container/subprocess/owner element id
+    props: Dict[str, Any] = field(default_factory=dict)  # free-form attributes
 
 
 @dataclass(frozen=True)
@@ -20,6 +25,11 @@ class Edge:
     src: str
     dst: str
     guard: Optional[str] = None
+    # Extensions for multi-notation support
+    id: Optional[str] = None
+    relation: Optional[str] = None  # e.g., "bpmn:SequenceFlow", "archimate:Serving"
+    directed: bool = True  # many ArchiMate relations are undirected
+    props: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -29,6 +39,9 @@ class PIR:
     resources: Dict[str, dict] = field(default_factory=dict)  # pools, skills
     metadata: Dict[str, str] = field(default_factory=dict)
     representations: Dict[str, str] = field(default_factory=dict)
+    # New: view definitions and cross-notation mappings
+    views: Dict[str, dict] = field(default_factory=dict)
+    mappings: Dict[str, List[str]] = field(default_factory=dict)
     """Format-specific original representations attached to this PIR.
 
     Keys should be MIME-like format identifiers such as:
@@ -87,12 +100,20 @@ class NodeModel(BaseModel):
     lane: Optional[str] = None
     pool: Optional[str] = None
     policy_ref: Optional[str] = None
+    notation: str = "bpmn"
+    type: Optional[str] = None
+    parent: Optional[str] = None
+    props: Dict[str, Any] = Field(default_factory=dict)
 
 
 class EdgeModel(BaseModel):
     src: str
     dst: str
     guard: Optional[str] = None
+    id: Optional[str] = None
+    relation: Optional[str] = None
+    directed: bool = True
+    props: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PIRModel(BaseModel):
@@ -101,6 +122,8 @@ class PIRModel(BaseModel):
     resources: Dict[str, dict] = Field(default_factory=dict)
     metadata: Dict[str, str] = Field(default_factory=dict)
     representations: Dict[str, str] = Field(default_factory=dict)
+    views: Dict[str, dict] = Field(default_factory=dict)
+    mappings: Dict[str, List[str]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def edges_refer_to_nodes(cls, values):
@@ -136,12 +159,24 @@ def validate(pir: PIR) -> dict:
                 lane=n.lane,
                 pool=n.pool,
                 policy_ref=n.policy_ref,
+                notation=n.notation,
+                type=n.type,
+                parent=n.parent,
+                props=n.props,
             )
             for nid, n in pir.nodes.items()
         }
 
         edges = [
-            EdgeModel(src=e.src, dst=e.dst, guard=e.guard)
+            EdgeModel(
+                src=e.src,
+                dst=e.dst,
+                guard=e.guard,
+                id=e.id,
+                relation=e.relation,
+                directed=e.directed,
+                props=e.props,
+            )
             for e in pir.edges
         ]
 
@@ -151,6 +186,8 @@ def validate(pir: PIR) -> dict:
             resources=pir.resources,
             metadata=pir.metadata,
             representations=pir.representations,
+            views=pir.views,
+            mappings=pir.mappings,
         )
     except ValidationError as ve:
         for err in ve.errors():
@@ -168,11 +205,20 @@ def validate(pir: PIR) -> dict:
     node_ids = set(pir.nodes.keys())
     adj: Dict[str, List[str]] = {nid: [] for nid in node_ids}
     indeg: Dict[str, int] = {nid: 0 for nid in node_ids}
+    # Track undirected degree separately so we don't raise isolated warnings
+    undeg: Dict[str, int] = {nid: 0 for nid in node_ids}
     for e in pir.edges:
-        if e.src in adj:
-            adj[e.src].append(e.dst)
-        if e.dst in indeg:
-            indeg[e.dst] += 1
+        if getattr(e, "directed", True):
+            if e.src in adj:
+                adj[e.src].append(e.dst)
+            if e.dst in indeg:
+                indeg[e.dst] += 1
+        else:
+            # undirected relation contributes to incident degree but not reachability
+            if e.src in undeg:
+                undeg[e.src] += 1
+            if e.dst in undeg:
+                undeg[e.dst] += 1
 
     sources = [n for n, d in indeg.items() if d == 0]
     # if no explicit sources, pick an arbitrary node as start
@@ -196,7 +242,10 @@ def validate(pir: PIR) -> dict:
         warnings.append(f"Unreachable nodes: {unreachable}")
 
     # 3) Isolated nodes (no in, no out)
-    isolated = [n for n in node_ids if indeg.get(n, 0) == 0 and not adj.get(n)]
+    isolated = [
+        n for n in node_ids
+        if indeg.get(n, 0) == 0 and not adj.get(n) and undeg.get(n, 0) == 0
+    ]
     if isolated:
         warnings.append(f"Isolated nodes (no in/out edges): {isolated}")
 
