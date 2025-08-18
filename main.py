@@ -99,7 +99,7 @@ with col_left:
                                         )
                                         
                                         if agent_mode:
-                                                # Use agent with validation
+                                                # Use Marvin agent
                                                 msgs = agent_system_prompt(f"{extra}\n\nUser request: {user_msg}", current)
                                                 reply = agent_chat(msgs)
                                         else:
@@ -119,7 +119,11 @@ with col_left:
                                                                 ),
                                                         }
                                                 ]
-                                                reply = ai_chat(msgs2)
+                                                # Keep using the same pathway as initial call
+                                                if agent_mode:
+                                                        reply = agent_chat(msgs2)
+                                                else:
+                                                        reply = ai_chat(msgs2)
                                                 maybe_xml = extract_bpmn_xml(reply)
                                 except Exception as e:
                                         st.error(f"Chat failed: {e}")

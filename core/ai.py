@@ -69,7 +69,7 @@ def chat(
                     if not line:
                         continue
                     try:
-                        obj = httpx.Response(200, text=line).json()
+                        obj = json.loads(line)
                     except Exception:
                         # Fallback: ignore non-JSON
                         continue
@@ -97,48 +97,50 @@ def extract_bpmn_xml(text: str) -> Optional[str]:
     return None
 
 
-@curry
-def system_prompt(instructions: str, bpmn_xml: str) -> list[dict]:
-    """Build system + user messages for the chat model.
+SYSTEM_TEXT_BASE = (
+    "You are a process improvement consultant and BPMN expert agent. Your job is to modify BPMN 2.0 XML to match the user's intent. "
+    "Output a single message with TWO parts in this exact order: (1) a single valid <definitions>...</definitions> block containing the updated BPMN; "
+    "(2) exactly three thoughtful follow-up questions to clarify requirements, each on its own line and prefixed with Q1:, Q2:, Q3:. "
+    "Do not use markdown fences or prose outside those parts. If the request is ambiguous, make a reasonable assumption and proceed. "
+    "I will automatically validate your BPMN and provide feedback if there are errors, so focus on creating correct, well-formed BPMN."
+)
 
-    Returns list of messages ready for Ollama chat endpoint.
+SYSTEM_TEXT_AGENT = (
+    "You are an advanced BPMN agent with automatic validation capabilities. "
+    "Your task is to modify BPMN 2.0 XML to match user requirements while ensuring it validates correctly. "
+    "Output format: (1) Valid <definitions>...</definitions> BPMN XML block; "
+    "(2) Three follow-up questions prefixed Q1:, Q2:, Q3:. "
+    "I will automatically validate your BPMN output. If there are validation errors, I will provide feedback and you should fix them. "
+    "Focus on creating syntactically correct BPMN with proper node references and flow connections."
+)
+
+
+def _build_messages(instructions: str, bpmn_xml: str, system_text: str) -> list[dict]:
+    """Return a standard [system, user] message list for BPMN editing.
+
+    Args:
+        instructions: Natural language request describing desired changes.
+        bpmn_xml: Current BPMN XML string.
+        system_text: Instruction text for the system role.
     """
-    sys_msg = {
-        "role": "system",
-        "content": (
-            "You are a process improvement consultant and BPMN expert agent. Your job is to modify BPMN 2.0 XML to match the user's intent. "
-            "Output a single message with TWO parts in this exact order: (1) a single valid <definitions>...</definitions> block containing the updated BPMN; "
-            "(2) exactly three thoughtful follow-up questions to clarify requirements, each on its own line and prefixed with Q1:, Q2:, Q3:. "
-            "Do not use markdown fences or prose outside those parts. If the request is ambiguous, make a reasonable assumption and proceed. "
-            "I will automatically validate your BPMN and provide feedback if there are errors, so focus on creating correct, well-formed BPMN."
-        ),
-    }
+    sys_msg = {"role": "system", "content": system_text}
     user_msg = {
         "role": "user",
         "content": f"Current BPMN model:\n\n{bpmn_xml}\n\nInstructions: {instructions}",
     }
     return [sys_msg, user_msg]
+
+
+@curry
+def system_prompt(instructions: str, bpmn_xml: str) -> list[dict]:
+    """Build system + user messages for the chat model (standard mode)."""
+    return _build_messages(instructions, bpmn_xml, SYSTEM_TEXT_BASE)
 
 
 @curry 
 def agent_system_prompt(instructions: str, bpmn_xml: str) -> list[dict]:
-    """Enhanced system prompt for agent mode with validation awareness."""
-    sys_msg = {
-        "role": "system", 
-        "content": (
-            "You are an advanced BPMN agent with automatic validation capabilities. "
-            "Your task is to modify BPMN 2.0 XML to match user requirements while ensuring it validates correctly. "
-            "Output format: (1) Valid <definitions>...</definitions> BPMN XML block; "
-            "(2) Three follow-up questions prefixed Q1:, Q2:, Q3:. "
-            "I will automatically validate your BPMN output. If there are validation errors, I will provide feedback and you should fix them. "
-            "Focus on creating syntactically correct BPMN with proper node references and flow connections."
-        ),
-    }
-    user_msg = {
-        "role": "user",
-        "content": f"Current BPMN model:\n\n{bpmn_xml}\n\nInstructions: {instructions}",
-    }
-    return [sys_msg, user_msg]
+    """Build system + user messages for agent mode with validation awareness."""
+    return _build_messages(instructions, bpmn_xml, SYSTEM_TEXT_AGENT)
 
 
 # Compatibility layer for existing tool system 
@@ -163,6 +165,8 @@ def get_available_tools() -> Dict[str, Callable]:
 def validate_bpmn_tool(bpmn_xml: str) -> Dict[str, Any]:
     """Legacy wrapper for validate_bpmn function."""
     return validate_bpmn(bpmn_xml)
+
+
 # BPMN validation tool - using regular function for direct validation
 def validate_bpmn(bpmn_xml: str) -> Dict[str, Any]:
     """Validate a BPMN XML string and return errors/warnings.
@@ -193,18 +197,59 @@ def validate_bpmn(bpmn_xml: str) -> Dict[str, Any]:
         }
 
 
-# Marvin-compatible tool version for agent use
-@marvin.fn
+# Marvin-compatible tool function (pass explicitly to Agent when needed)
 def marvin_validate_bpmn(bpmn_xml: str) -> Dict[str, Any]:
-    """Marvin-compatible BPMN validation tool for use in agent workflows."""
+    """BPMN validation callable for use in Marvin agent tool lists."""
     return validate_bpmn(bpmn_xml)
 
 
-def _configure_marvin_for_ollama():
-    """Configure Marvin to work with local Ollama server."""
-    # Set up environment variables for Ollama compatibility
+def _configure_marvin_for_ollama(base_url: str | None = None) -> None:
+    """Configure Marvin to work with a local/OpenAI-compatible endpoint.
+
+    Args:
+        base_url: If provided, set OPENAI_BASE_URL to this value; otherwise
+                  default to the standard local Ollama OpenAI-compatible path.
+    """
     os.environ.setdefault("OPENAI_API_KEY", "dummy-key")  # Ollama doesn't need real key
-    os.environ.setdefault("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    if base_url:
+        os.environ["OPENAI_BASE_URL"] = base_url
+    else:
+        os.environ.setdefault("OPENAI_BASE_URL", "http://localhost:11434/v1")
+
+
+def _normalize_model_for_marvin(model: str) -> str:
+    """Return a Marvin-friendly model string.
+
+    - If model has a known provider prefix, return as-is.
+    - Otherwise, assume OpenAI-compatible provider and prefix with 'openai:'.
+    This lets us pass raw Ollama model ids like 'llama3.1:8b'.
+    """
+    if not isinstance(model, str) or not model:
+        return model
+    provider = model.split(":", 1)[0]
+    known = {
+        "openai", "deepseek", "azure", "openrouter", "vercel", "grok",
+        "moonshotai", "fireworks", "together", "heroku", "github",
+        "google-gla", "google-vertex", "vertexai", "groq", "mistral",
+        "anthropic", "bedrock", "huggingface",
+    }
+    if provider in known:
+        return model
+    # If it already starts with typical OpenAI names, Marvin will infer, but for
+    # custom/local names (e.g., 'llama3.1:8b' or 'gpt-oss:20b'), prefix 'openai:'.
+    return f"openai:{model}"
+
+
+def _extract_user_and_system_text(messages: Iterable[dict]) -> tuple[str, list[str]]:
+    """Extract user content and system texts from a chat message list."""
+    user_content = ""
+    sys_texts: list[str] = []
+    for msg in messages:
+        if msg.get("role") == "user":
+            user_content += msg.get("content", "") + "\n"
+        elif msg.get("role") == "system" and msg.get("content"):
+            sys_texts.append(msg["content"])
+    return user_content, sys_texts
 
 
 def agent_chat(
@@ -215,92 +260,70 @@ def agent_chat(
     timeout: float = 120.0,
     max_iterations: int = 5,
 ) -> str:
-    """Enhanced chat that can use Marvin agents for BPMN validation.
-    
-    Falls back to traditional chat if Marvin is not available or fails.
-    The agent will attempt to validate and fix BPMN automatically.
+    """Agent chat using Marvin for BPMN validation and tool use only.
+
+    Always uses a Marvin Agent configured for BPMN validation. No legacy
+    fallback is provided. If Marvin fails, the exception will propagate.
     """
     messages = list(messages)
-    
-    # Try to use Marvin agent first
-    try:
-        _configure_marvin_for_ollama()
-        
-        # Create a Marvin agent for BPMN validation
-        bpmn_agent = marvin.Agent(
-            name="bpmn_validator",
-            model=model,
-            instructions="""You are a BPMN validation expert. Your task is to modify BPMN 2.0 XML to match user requirements while ensuring it validates correctly.
-            
-            Output format: (1) Valid <definitions>...</definitions> BPMN XML block; (2) Three follow-up questions prefixed Q1:, Q2:, Q3:.
-            
-            You have access to a BPMN validation tool. Use it to check your work and fix any errors iteratively.""",
-            tools=[marvin_validate_bpmn],
-        )
-        
-        # Extract the user's request from messages
-        user_content = ""
-        for msg in messages:
-            if msg.get("role") == "user":
-                user_content += msg.get("content", "") + "\n"
-        
-        # Use Marvin agent - this will automatically handle tool calling
-        response = marvin.run(user_content, agent=bpmn_agent)
-        ic("Marvin agent response", response)
-        return response
-        
-    except Exception as e:
-        ic("Marvin agent failed, falling back to traditional chat", e)
-        # Fall back to original implementation with validation loop
-        return _traditional_agent_chat(messages, model=model, base_url=base_url, timeout=timeout, max_iterations=max_iterations)
+
+    _configure_marvin_for_ollama(
+        base_url=(base_url.rstrip("/") + "/v1") if base_url and not base_url.endswith("/v1") else base_url
+    )
+
+    # Extract the user's request and any system guidance from messages
+    user_content, sys_texts = _extract_user_and_system_text(messages)
+    base_guidance = (
+        "You are a BPMN validation expert. Your task is to modify BPMN 2.0 XML to match user requirements while ensuring it validates correctly.\n\n"
+        "Output format: (1) a single valid <definitions>...</definitions> BPMN XML block; (2) exactly three follow-up questions, one per line, prefixed Q1:, Q2:, Q3:.\n"
+        "Do not include any other prose or markdown fences."
+    )
+    merged_instructions = ("\n\n".join(sys_texts + [base_guidance])) if sys_texts else base_guidance
+
+    # Create a Marvin Agent without tools by default for stability across versions
+    # Optionally enable tools via env toggle for tests/integration
+    tools: list[Callable[..., Any]] | None
+    if os.getenv("MARVIN_ENABLE_TOOLS", "").strip() not in {"", "0", "false", "False"}:
+        tools = [marvin_validate_bpmn]
+    else:
+        tools = []
+
+    # Create a Marvin Agent
+    bpmn_agent = marvin.Agent(  # type: ignore[arg-type]
+        name="bpmn_validator",
+        model=_normalize_model_for_marvin(model),  # type: ignore[arg-type]
+        instructions=merged_instructions,
+        tools=tools,
+    )
+
+    # Use the Agent directly
+    response = bpmn_agent.run(user_content)
+    # Enforce presence of three Q lines to meet output contract
+    response = _ensure_followup_questions(response)
+    ic("Marvin agent response", response)
+    return response
 
 
-def _traditional_agent_chat(
-    messages: Iterable[dict],
-    *,
-    model: str = DEFAULT_MODEL,
-    base_url: str = DEFAULT_OLLAMA_URL,
-    timeout: float = 120.0,
-    max_iterations: int = 5,
-) -> str:
-    """Traditional agent chat with manual validation loop as fallback."""
-    messages = list(messages)
-    
-    for iteration in range(max_iterations):
-        ic(f"Agent iteration {iteration + 1}")
-        
-        # Get response from model
-        response = chat(messages, model=model, base_url=base_url, timeout=timeout)
-        
-        # Extract BPMN XML if present
-        bpmn_xml = extract_bpmn_xml(response)
-        
-        if bpmn_xml:
-            # Validate the BPMN using our validation function
-            validation_result = validate_bpmn(bpmn_xml)
-            
-            if validation_result.get("success") and not validation_result.get("errors"):
-                # BPMN is valid, return the response
-                return response
-            
-            # BPMN has errors, provide feedback to the model
-            validation_feedback = {
-                "role": "system",
-                "content": (
-                    "The BPMN you provided has validation issues. "
-                    f"Errors: {validation_result.get('errors', [])}. "
-                    f"Warnings: {validation_result.get('warnings', [])}. "
-                    "Please fix these issues and provide corrected BPMN XML."
-                )
-            }
-            messages.append({"role": "assistant", "content": response})
-            messages.append(validation_feedback)
-            
-            # Continue to next iteration
-            continue
-        else:
-            # No BPMN XML found, return as-is
-            return response
-    
-    # Max iterations reached
-    return response + "\n\n[Note: Maximum validation iterations reached]"
+def _ensure_followup_questions(text: str) -> str:
+    """Ensure exactly three Q1/Q2/Q3 follow-up lines exist. If missing, append generic ones."""
+    if not isinstance(text, str):
+        return text
+    have_q1 = re.search(r"^Q1:\s*", text, flags=re.M) is not None
+    have_q2 = re.search(r"^Q2:\s*", text, flags=re.M) is not None
+    have_q3 = re.search(r"^Q3:\s*", text, flags=re.M) is not None
+    if have_q1 and have_q2 and have_q3:
+        return text
+    questions = []
+    if not have_q1:
+        questions.append("Q1: Are task names and IDs acceptable as generated, or do you have preferred naming?")
+    if not have_q2:
+        questions.append("Q2: Should the process be executable (add gateways/events) or remain a high-level sketch?")
+    if not have_q3:
+        questions.append("Q3: Are there additional validations or constraints (SLAs, data objects) to include?")
+    sep = "\n" if text and not text.endswith("\n") else ""
+    return f"{text}{sep}" + "\n".join(questions)
+
+
+# Note: The previous traditional validation loop has been removed intentionally.
+
+

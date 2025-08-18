@@ -318,3 +318,32 @@ class ProcessViewerWidget(anywidget.AnyWidget):
 
     # List of element IDs to highlight on the canvas (BPMN & DMN-DRD).
     highlight_ids = T.List(T.Unicode(), default_value=[]).tag(sync=True)
+
+
+class BpmnViewerWidget(ProcessViewerWidget):
+  """Simple BPMN-only viewer widget with convenient defaults.
+
+  Usage:
+    w = BpmnViewerWidget(xml=bpmn_xml, height=480)
+    display(w)
+  """
+  def __init__(self, xml: str = "", height: int = 520, **kwargs):
+    # Set defaults before calling super so traitlets are initialized
+    kwargs.setdefault('mode', 'bpmn')
+    kwargs.setdefault('xml', xml)
+    kwargs.setdefault('height', height)
+    super().__init__(**kwargs)
+
+
+class DmnViewerWidget(ProcessViewerWidget):
+  """Simple DMN viewer widget (DRD / tables) with convenient defaults.
+
+  Usage:
+    w = DmnViewerWidget(xml=dmn_xml, height=480)
+    display(w)
+  """
+  def __init__(self, xml: str = "", height: int = 520, **kwargs):
+    kwargs.setdefault('mode', 'dmn')
+    kwargs.setdefault('xml', xml)
+    kwargs.setdefault('height', height)
+    super().__init__(**kwargs)

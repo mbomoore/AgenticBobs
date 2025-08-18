@@ -4,11 +4,13 @@ from __future__ import annotations
 from typing import Any
 
 from core.pir import PIR, PIRBuilder
+from result import Ok, Err, Result, is_ok, is_err
+from SpiffWorkflow.bpmn.parser import BpmnParser  # type: ignore
 
 
 def _spiff_available() -> bool:
     try:
-        import spiffworkflow  # noqa: F401
+        import SpiffWorkflow  # noqa: F401
         return True
     except Exception:
         return False
@@ -29,3 +31,16 @@ def parse_bpmn(xml_bytes: bytes) -> PIR:
     # Minimal parser fallback
     from .bpmn_min import from_bpmn_xml
     return from_bpmn_xml(xml_bytes)
+
+
+def is_good_bpmn(xml_bytes: bytes) -> Result[bool, str]:
+    """
+    Return either a True or an error message.
+    """
+    
+    parser = BpmnParser()
+    try:
+        _ = parser.parse_xml_string(xml_bytes.decode("utf-8"))
+        return Ok(True)
+    except Exception as e:
+        return Err(str(e))

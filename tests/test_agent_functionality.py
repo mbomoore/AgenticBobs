@@ -2,7 +2,7 @@
 
 import pytest
 from core.ai import validate_bpmn_tool, get_available_tools, register_tool
-
+from icecream import ic
 
 def test_validate_bpmn_tool_registration():
     """Test that the validate_bpmn tool is properly registered."""
@@ -25,6 +25,9 @@ def test_validate_bpmn_tool_valid_bpmn():
 </definitions>"""
     
     result = validate_bpmn_tool(valid_bpmn)
+    
+    
+    ic(result)
     assert result["success"] is True
     assert result["errors"] == []
 
