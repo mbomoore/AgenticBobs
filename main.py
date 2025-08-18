@@ -56,8 +56,8 @@ def _mermaid_html(mermaid_code: str) -> str:
 """
 
 
-st.set_page_config(page_title="The AI Bobs", layout="wide")
-st.title("The AI Bobs")
+st.set_page_config(page_title="The Bobs 2.0", layout="wide")
+st.title("The Bobs 2.0")
 st.caption("(Make a real AI agent that can work for you!)")
 
 if "bpmn_text" not in st.session_state:

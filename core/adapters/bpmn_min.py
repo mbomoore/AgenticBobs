@@ -40,7 +40,15 @@ def from_bpmn_xml(xml_bytes: bytes):
     node_elems = [
         ("startEvent", _tag("startEvent")),
         ("endEvent", _tag("endEvent")),
+        # Treat common BPMN task subtypes as generic 'task' for our PIR
         ("task", _tag("task")),
+        ("task", _tag("userTask")),
+        ("task", _tag("serviceTask")),
+        ("task", _tag("manualTask")),
+        ("task", _tag("scriptTask")),
+        ("task", _tag("businessRuleTask")),
+        ("task", _tag("sendTask")),
+        ("task", _tag("receiveTask")),
         ("exclusiveGateway", _tag("exclusiveGateway")),
         # Support intermediate events used in simple flows
         ("intermediateThrowEvent", _tag("intermediateThrowEvent")),
