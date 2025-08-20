@@ -12,26 +12,18 @@ dependencies = [
     "pytest>=8.4.1",
     "simpy>=4.1.1",
     "streamlit>=1.36.0",
-<<<<<<< HEAD
-    "marvin>=3.1.0",
+    "marvin>=3.1.4",
     "promptflow>=1.18.1",
     "promptflow-tools>=1.6.1",
     "spiffworkflow>=3.1.1",
     "result>=0.17.0",
-    "pydantic-ai-slim[openai]>=0.7.0",
-    "pydantic-ai[openai]>=0.7.0",
     "ipywidgets>=8.1.7",
     "anywidget>=0.9.18",
-=======
-    "ipywidgets>=8.1.0",
-    "anywidget>=0.9.0",
     "jupyterlab-widgets>=3.0.10",
     "matplotlib>=3.10.5",
     "numpy>=2.3.2",
     "egglog>=11.0.0",
-    "marvin>=3.1.4",
-    "spiffworkflow>=3.1.1",
-    "result>=0.17.0",
+    "seaborn>=0.13.2",
 ]
 
 [dependency-groups]

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions id="def_bpmn_modified"
+  targetNamespace="urn:example:bpmn"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI">
+
+  <bpmn:process id="process_spec_transfer" name="Spec Transfer" isExecutable="true">
+    <bpmn:startEvent id="start" name="Start"/>
+    <bpmn:task id="notify_customer" name="Notify Customer"/>
+    <bpmn:task id="check_backlog" name="Check Backlog for Duplicates"/>
+    <bpmn:exclusiveGateway id="duplicate_gateway" name="Duplicate?" default="flow5"/>
+    <bpmn:task id="merge_duplicates" name="Merge Duplicate Requests"/>
+    <bpmn:task id="forward_specs" name="Forward Specs to Engineers"/>
+    <bpmn:task id="assign_tshirt_size" name="Assign T-Shirt Size"/>
+    <bpmn:task id="clarify_engineer" name="Clarify Engineer Request"/>
+    <bpmn:boundaryEvent id="timer_boundary" name="1-day response" attachedToRef="clarify_engineer">
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT24H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:task id="escalate" name="Escalate to Management"/>
+    <bpmn:endEvent id="end" name="End"/>
+
+    <bpmn:sequenceFlow id="flow0" sourceRef="start" targetRef="notify_customer"/>
+    <bpmn:sequenceFlow id="flow1" sourceRef="notify_customer" targetRef="check_backlog"/>
+    <bpmn:sequenceFlow id="flow2" sourceRef="check_backlog" targetRef="duplicate_gateway"/>
+    <bpmn:sequenceFlow id="flow3" sourceRef="duplicate_gateway" targetRef="merge_duplicates">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${duplicate}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow5" sourceRef="duplicate_gateway" targetRef="forward_specs"/>
+    <bpmn:sequenceFlow id="flow4" sourceRef="merge_duplicates" targetRef="forward_specs"/>
+    <bpmn:sequenceFlow id="flow6" sourceRef="forward_specs" targetRef="assign_tshirt_size"/>
+    <bpmn:sequenceFlow id="flow7" sourceRef="assign_tshirt_size" targetRef="clarify_engineer"/>
+    <bpmn:sequenceFlow id="flow8" sourceRef="clarify_engineer" targetRef="end"/>
+    <bpmn:sequenceFlow id="flow9" sourceRef="timer_boundary" targetRef="escalate"/>
+    <bpmn:sequenceFlow id="flow10" sourceRef="escalate" targetRef="end"/>
+  </bpmn:process>
+
+  <!-- Minimal DI so Camunda/bpmn.io can render it -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="process_spec_transfer">
+
+      <!-- Shapes -->
+      <bpmndi:BPMNShape id="shape_start" bpmnElement="start">
+        <dc:Bounds x="100" y="120" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_notify_customer" bpmnElement="notify_customer">
+        <dc:Bounds x="180" y="100" width="120" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_check_backlog" bpmnElement="check_backlog">
+        <dc:Bounds x="340" y="100" width="180" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_duplicate_gateway" bpmnElement="duplicate_gateway" isMarkerVisible="true">
+        <dc:Bounds x="560" y="115" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_merge_duplicates" bpmnElement="merge_duplicates">
+        <dc:Bounds x="660" y="20" width="180" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_forward_specs" bpmnElement="forward_specs">
+        <dc:Bounds x="660" y="180" width="180" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_assign_tshirt_size" bpmnElement="assign_tshirt_size">
+        <dc:Bounds x="880" y="180" width="180" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_clarify_engineer" bpmnElement="clarify_engineer">
+        <dc:Bounds x="1100" y="180" width="200" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_timer_boundary" bpmnElement="timer_boundary">
+        <dc:Bounds x="1170" y="250" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_escalate" bpmnElement="escalate">
+        <dc:Bounds x="1100" y="320" width="200" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="shape_end" bpmnElement="end">
+        <dc:Bounds x="1340" y="200" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <!-- Edges -->
+      <bpmndi:BPMNEdge id="edge_flow0" bpmnElement="flow0">
+        <di:waypoint x="136" y="138"/>
+        <di:waypoint x="180" y="140"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow1" bpmnElement="flow1">
+        <di:waypoint x="300" y="140"/>
+        <di:waypoint x="340" y="140"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow2" bpmnElement="flow2">
+        <di:waypoint x="520" y="140"/>
+        <di:waypoint x="560" y="140"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow3" bpmnElement="flow3">
+        <di:waypoint x="585" y="115"/>
+        <di:waypoint x="585" y="60"/>
+        <di:waypoint x="660" y="60"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow5" bpmnElement="flow5">
+        <di:waypoint x="610" y="140"/>
+        <di:waypoint x="660" y="220"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow4" bpmnElement="flow4">
+        <di:waypoint x="840" y="60"/>
+        <di:waypoint x="750" y="60"/>
+        <di:waypoint x="750" y="180"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow6" bpmnElement="flow6">
+        <di:waypoint x="840" y="220"/>
+        <di:waypoint x="880" y="220"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow7" bpmnElement="flow7">
+        <di:waypoint x="1060" y="220"/>
+        <di:waypoint x="1100" y="220"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow8" bpmnElement="flow8">
+        <di:waypoint x="1300" y="220"/>
+        <di:waypoint x="1340" y="218"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow9" bpmnElement="flow9">
+        <di:waypoint x="1188" y="268"/>
+        <di:waypoint x="1188" y="320"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="edge_flow10" bpmnElement="flow10">
+        <di:waypoint x="1300" y="360"/>
+        <di:waypoint x="1358" y="218"/>
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

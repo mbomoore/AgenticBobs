@@ -13,87 +13,73 @@ import io
 import sys
 
 import marvin
-from SpiffWorkflow.bpmn.parser import BpmnParser, BpmnValidator
 
-from marvin_scripts.common import build_model, get_empty_process_model
-from core.bpmn_validator import validate_bpmn_string
+from marvin_scripts.common import build_model
 
+from marvin_scripts.detect_type import bob_1
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Detect type, generate XML, validate")
-    p.add_argument("--description", required=True, help="Natural language description")
-    return p.parse_args()
+from marvin_scripts.generate_xml import generate_process_xml, ProcessGenerationConfig
 
+from marvin_scripts.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
 
-def detect_type(description: str, model) -> str:
-    bob_1 = marvin.Agent(
-        name="Bob_1",
-        model=model,
-        instructions=(
-            "You are an expert business process modelling consultant. "
-            "Decide if the process is best modelled as BPMN, DMN or CMMN. "
-            "Respond with only the model type."
-        ),
-    )
-    return bob_1.run(description, handlers=[])
+# use the marvin.thread system make a conversation.
 
 
-def generate_xml(description: str, model_type: str, model) -> str:
-    empty_template, example_inputs = get_empty_process_model(model_type)
-    empty_xml = empty_template.format(**example_inputs)
 
-    bob_2 = marvin.Agent(
-        name="Bob_2",
-        model=model,
-        instructions=(
-            "You are an expert business process modelling consultant. "
-            "Update the XML diagram to reflect the described business process."
-        ),
-        tools=[validate_bpmn_string],
-    )
+if __name__ == "__main__":
+    
+    small = build_model(model_name="qwen3:8b")
+    large = build_model(model_name="gpt-oss:20b")
+    
+    thread = marvin.Thread()
 
-    task = marvin.Task(
-        "Make the necessary changes to the XML diagram to align it with the described business process",
-        agents=[bob_2],
-        context={"description": description, "xml_process": empty_xml},
-    )
-
-    return task.run(handlers=[])
-
-
-def validate_if_bpmn(model_type: str, xml_text: str) -> None:
-    if model_type != "BPMN":
-        print("Validation skipped (only BPMN supported)")
-        return
-
-    validator = BpmnValidator()
-    parser = BpmnParser(validator=validator)
-
-    bytes_xml = xml_text.encode("utf-8")
-    bytes_io = io.BytesIO(bytes_xml)
-    parser.add_bpmn_io(bytes_io)
-    print("Validation OK")
-
-
-def main() -> int:
-    args = parse_args()
-    model = build_model()
-
-    model_type = detect_type(args.description, model)
-    print(f"Detected type: {model_type}")
-
-    xml_out = generate_xml(args.description, model_type, model)
-    print("\n--- Generated XML ---\n")
-    print(xml_out)
-
-    try:
-        validate_if_bpmn(model_type, xml_out)
-    except Exception as exc:
-        print(f"Validation error: {exc}", file=sys.stderr)
-        return 1
-
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main())
+    
+    while True:
+        
+            
+        # if we are at the beginning, then start by asking for a description of the process and typifying it
+        if not hasattr(thread, '_process_type'):
+            input_text = input("What would you say that you do here? ")
+            
+            thread._process_type = bob_1(small, input_text)
+        else:
+            input_text = input(f"You can write your answers here: ")
+            
+            if input_text.lower() in ['exit', 'quit', 'q', 'stop']:
+                print("Exiting the pipeline.")
+                print("XML so far: ")
+                print(thread._current_xml)
+                sys.exit(0)
+            
+        pgen_conf = ProcessGenerationConfig(
+            description_or_answers=input_text,
+            process_type=thread._process_type,
+            model_instance=large,
+            current_thread=thread,
+            current_xml=getattr(thread, '_current_xml', None)
+        )
+        
+        xml = generate_process_xml(pgen_conf)
+        
+        thread._current_xml = xml.xml
+        
+        
+        rfc = RefinementQuestionsConfig(
+            original_description_or_answer=input_text,
+            generated_xml=thread._current_xml,
+            process_type=thread._process_type,
+            model_instance=large,
+            current_thread=thread
+        )
+        
+        questions = generate_refinement_questions(rfc)
+        
+        print("Here are some questions to refine the process model:")
+        for q in questions:
+            print(f"- {q}")
+            
+        
+        
+        
+            
+        
