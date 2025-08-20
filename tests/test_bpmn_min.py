@@ -106,6 +106,8 @@ def test_user_task_and_variants_parse_as_task():
     assert "task" in kinds
     # ensure specific ids were created
     assert {"u1", "u2"}.issubset(set(pir.nodes.keys()))
+<<<<<<< HEAD
+=======
     def test_dispatcher_prefers_spiff_when_available(monkeypatch):
         # Simulate SpiffWorkflow being available by creating fake modules
         import types
@@ -174,3 +176,4 @@ def test_user_task_and_variants_parse_as_task():
         assert "task" in kinds
         # ensure specific ids were created
         assert {"u1", "u2"}.issubset(set(pir.nodes.keys()))
+>>>>>>> origin/main
