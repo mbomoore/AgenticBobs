@@ -1,9 +1,22 @@
 [project]
-name = "agenticbobs"
+name = "agentic-process-automation"
 version = "0.1.0"
-description = "Add your description here"
+description = "An AI agent for process formalization and automation with simulation and validation"
 readme = "README.md"
 requires-python = ">=3.12"
+authors = [
+    {name = "AgenticBobs Contributors"}
+]
+keywords = ["process-automation", "bpmn", "simulation", "ai", "workflow"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Office/Business :: Scheduling",
+]
 dependencies = [
     "icecream>=2.1.6",
     "httpx>=0.27.2",
@@ -12,21 +25,62 @@ dependencies = [
     "pytest>=8.4.1",
     "simpy>=4.1.1",
     "streamlit>=1.36.0",
-    "marvin>=3.1.4",
-    "promptflow>=1.18.1",
-    "promptflow-tools>=1.6.1",
-    "spiffworkflow>=3.1.1",
     "result>=0.17.0",
     "ipywidgets>=8.1.7",
     "anywidget>=0.9.18",
     "jupyterlab-widgets>=3.0.10",
     "matplotlib>=3.10.5",
     "numpy>=2.3.2",
-    "egglog>=11.0.0",
     "seaborn>=0.13.2",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
+ai = [
+    "marvin>=3.1.4",
+]
+process = [
+    "spiffworkflow>=3.1.1",
+]
+optimization = [
+    "ortools>=9.5.0",
+]
+monitoring = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-jaeger>=1.20.0",
+]
+data = [
+    "duckdb>=0.9.0",
+    "pandas>=2.0.0",
+    "pm4py>=2.7.0",
+    "workalendar>=17.0.0",
+    "holidays>=0.34",
+]
 dev = [
     "ipykernel>=6.30.1",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
 ]
+all = [
+    "agentic-process-automation[ai,process,optimization,monitoring,data,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/mbomoore/AgenticBobs"
+Repository = "https://github.com/mbomoore/AgenticBobs"
+Issues = "https://github.com/mbomoore/AgenticBobs/issues"
+
+[project.scripts]
+agenticbobs-app = "agentic_process_automation.app.main:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"

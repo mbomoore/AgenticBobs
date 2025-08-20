@@ -10,3 +10,28 @@ wheels/
 .venv
 .mypy_cache/
 .pytest_cache/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test_reorganization.py
+
+# Data files
+data/
+*.duckdb
+*.parquet
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
