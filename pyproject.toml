@@ -15,6 +15,12 @@ dependencies = [
     "ipywidgets>=8.1.0",
     "anywidget>=0.9.0",
     "jupyterlab-widgets>=3.0.10",
+    "matplotlib>=3.10.5",
+    "numpy>=2.3.2",
+    "egglog>=11.0.0",
+    "marvin>=3.1.4",
+    "spiffworkflow>=3.1.1",
+    "result>=0.17.0",
 ]
 
 [dependency-groups]

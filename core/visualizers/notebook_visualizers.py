@@ -416,3 +416,14 @@ export function render({ model, el }) {
   setTimeout(rerender, 30);
 }
     """
+
+
+# Convenience subclasses: one-widget-per-diagram-type
+class BPMNViewerWidget(ProcessViewerWidget):
+  """BPMN-only notebook visualizer (mode fixed to 'bpmn')."""
+  mode = T.Enum(values=["bpmn"], default_value="bpmn").tag(sync=True)
+
+
+class DMNViewerWidget(ProcessViewerWidget):
+  """DMN-only notebook visualizer (mode fixed to 'dmn')."""
+  mode = T.Enum(values=["dmn"], default_value="dmn").tag(sync=True)
