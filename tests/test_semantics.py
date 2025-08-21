@@ -1,5 +1,5 @@
-from core.pir import PIRBuilder
-from core.semantics import Token, SimState, next_enabled, step
+from agentic_process_automation.core.pir import PIRBuilder
+from agentic_process_automation.core.semantics import Token, SimState, next_enabled, step
 
 
 def build_linear_pir():

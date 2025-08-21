@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from core.pir import PIR
+from .pir import PIR
 
 
 

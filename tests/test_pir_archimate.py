@@ -1,7 +1,7 @@
 import pytest
 from typing import Any, cast
 
-from core.pir import PIR, PIRBuilder, validate
+from agentic_process_automation.core.pir import PIR, PIRBuilder, validate
 
 
 def test_archimate_nodes_and_relations_basic():

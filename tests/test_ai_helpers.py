@@ -1,4 +1,4 @@
-from core.ai import extract_bpmn_xml, system_prompt
+from agentic_process_automation.core.ai import extract_bpmn_xml, system_prompt
 
 
 def test_extract_bpmn_xml_none():

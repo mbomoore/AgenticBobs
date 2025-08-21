@@ -1,4 +1,4 @@
-from core.adapters.bpmn_min import from_bpmn_xml
+from agentic_process_automation.core.adapters.bpmn_min import from_bpmn_xml
 
 
 def test_bpmn_adapter_attaches_original_xml_representation():

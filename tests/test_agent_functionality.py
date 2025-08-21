@@ -1,7 +1,9 @@
 """Test the agent functionality specifically."""
 
 import pytest
-from core.ai import validate_bpmn_tool, get_available_tools, register_tool
+import sys
+import os
+from agentic_process_automation.core.ai import validate_bpmn_tool, get_available_tools, register_tool
 from icecream import ic
 
 def test_validate_bpmn_tool_registration():

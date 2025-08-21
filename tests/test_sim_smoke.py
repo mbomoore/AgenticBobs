@@ -1,5 +1,5 @@
-from core.pir import PIRBuilder
-from core.sim import run
+from agentic_process_automation.core.pir import PIRBuilder
+from agentic_process_automation.core.sim import run
 
 
 def test_sim_smoke_runs_and_emits_ticks():

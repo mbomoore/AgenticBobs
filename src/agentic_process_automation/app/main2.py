@@ -8,10 +8,10 @@ import traceback
 import streamlit as st
 import streamlit.components.v1 as components
 
-from core.adapters.bpmn import parse_bpmn
-from core.pir import validate
-from core.viz import pir_to_mermaid
-from marvin_scripts.generate_xml import generate_process_xml, ProcessGenerationConfig
+from ..core.adapters.bpmn import parse_bpmn
+from ..core.pir import validate
+from ..core.viz import pir_to_mermaid
+from ..cli.generate_xml import generate_process_xml, ProcessGenerationConfig
 
 SAMPLE_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Defs_Sample">

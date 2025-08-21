@@ -11,7 +11,7 @@ import pytest
 import os
 import httpx
 
-from core.ai import agent_chat, system_prompt
+from agentic_process_automation.core.ai import agent_chat, system_prompt
 from tests.helpers import valid_bpmn, invalid_bpmn_missing_node, with_questions, count_questions
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.pir import PIR, PIRBuilder
+from ..pir import PIR, PIRBuilder
 from result import Ok, Err, Result, is_ok, is_err
 from SpiffWorkflow.bpmn.parser import BpmnParser  # type: ignore
 

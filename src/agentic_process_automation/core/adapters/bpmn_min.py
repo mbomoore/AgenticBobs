@@ -10,7 +10,7 @@ from __future__ import annotations
 from xml.etree import ElementTree as ET
 from typing import Dict
 
-from core.pir import PIRBuilder
+from ..pir import PIRBuilder
 
 
 BPMN_NS = {

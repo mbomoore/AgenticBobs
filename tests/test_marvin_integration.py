@@ -12,7 +12,7 @@ import os
 import httpx
 import pytest
 
-from core.ai import agent_chat, agent_system_prompt
+from agentic_process_automation.core.ai import agent_chat, agent_system_prompt
 
 
 pytestmark = pytest.mark.marvin
@@ -42,7 +42,7 @@ def test_agent_chat_uses_marvin_when_available(monkeypatch):
     # Allow caller to select model via env var (e.g., OLLAMA_MODEL=llama3.1:8b)
     model = os.getenv("OLLAMA_MODEL")
     if model:
-        import core.ai as ai_mod
+        import agentic_process_automation.core.ai as ai_mod
         monkeypatch.setattr(ai_mod, "DEFAULT_MODEL", model, raising=True)
 
     current_bpmn = ("<definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"Demo\">"

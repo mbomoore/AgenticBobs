@@ -6,8 +6,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from core.pir import PIRBuilder
-from core.viz import pir_to_mermaid
+from agentic_process_automation.core.pir import PIRBuilder
+from agentic_process_automation.core.viz import pir_to_mermaid
 
 
 def test_pir_to_mermaid_simple_flat_structure():

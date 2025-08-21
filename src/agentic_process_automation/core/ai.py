@@ -178,8 +178,8 @@ def validate_bpmn(bpmn_xml: str) -> Dict[str, Any]:
         Dict with 'errors' and 'warnings' lists
     """
     try:
-        from core.adapters.bpmn import parse_bpmn
-        from core.pir import validate
+        from .adapters.bpmn import parse_bpmn
+        from .pir import validate
         
         pir = parse_bpmn(bpmn_xml.encode("utf-8"))
         report = validate(pir)
