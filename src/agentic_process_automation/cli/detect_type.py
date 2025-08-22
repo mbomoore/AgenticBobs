@@ -9,7 +9,11 @@ import argparse
 import json
 import sys
 
-import marvin
+try:
+    import marvin
+    MARVIN_AVAILABLE = True
+except ImportError:
+    MARVIN_AVAILABLE = False
 
 from .common import build_model
 
@@ -17,7 +21,10 @@ from .common import build_model
 
 def bob_1(model, description: str) -> str:
     """Detect the best process model type from a description using Bob_1."""
-    bob_1 = marvin.Agent(
+    if not MARVIN_AVAILABLE:
+        raise ImportError("marvin library required for AI-based type detection")
+    
+    bob_1 = marvin.Agent(  # type: ignore[attr-defined]
         name="Bob_1",
         model=model,
         instructions=(
@@ -26,7 +33,6 @@ def bob_1(model, description: str) -> str:
             "modelled as BPMN, DMN or CMMN. Please just respond with the appropriate "
             "model type, no explanation is needed."
         ),
-        model_settings={"think": False},
     )
     return bob_1.run(description)
     
@@ -40,9 +46,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    
+    if not MARVIN_AVAILABLE:
+        print("Error: marvin library required for AI-based type detection")
+        print("Install with: pip install marvin")
+        return 1
+    
     model = build_model()
 
-    bob_1 = marvin.Agent(
+    bob_1 = marvin.Agent(  # type: ignore[attr-defined]
         name="Bob_1",
         model=model,
         instructions=(

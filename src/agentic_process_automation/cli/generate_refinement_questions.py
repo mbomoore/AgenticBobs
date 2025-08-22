@@ -13,8 +13,12 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Optional, Literal
 
-import marvin
-from marvin.handlers.print_handler import PrintHandler
+try:
+    import marvin
+    from marvin.handlers.print_handler import PrintHandler
+    MARVIN_AVAILABLE = True
+except ImportError:
+    MARVIN_AVAILABLE = False
 
 from .common import build_model
 
@@ -46,10 +50,19 @@ def generate_refinement_questions(config: RefinementQuestionsConfig) -> list[str
         Returns:
                 List of refinement questions
         """
+        if not MARVIN_AVAILABLE:
+            # Return fallback questions when marvin is not available
+            fallback_questions = [
+                f"What specific roles or stakeholders should be responsible for each step in this {config.process_type} process?",
+                f"How should exception scenarios or error conditions be handled within this process?",
+                f"What approval workflows or decision points might be missing from the current {config.process_type} model?"
+            ]
+            return fallback_questions
+        
         # Use provided model instance if present, otherwise build from model_name
         model = config.model_instance if config.model_instance is not None else build_model(model_name=config.model_name)
 
-        bob_3 = marvin.Agent(
+        bob_3 = marvin.Agent(  # type: ignore[attr-defined]
                 name="Bob_3",
                 model=model,
                 instructions=(
@@ -76,7 +89,7 @@ def generate_refinement_questions(config: RefinementQuestionsConfig) -> list[str
                 "process_type": config.process_type,
         }
 
-        questions_task = marvin.Task(
+        questions_task = marvin.Task(  # type: ignore[attr-defined]
                 "Generate 3 refinement questions for the process model",
                 agents=[bob_3],
                 context=task_context,
@@ -87,7 +100,10 @@ def generate_refinement_questions(config: RefinementQuestionsConfig) -> list[str
                 raw_response = questions_task.run(thread=config.current_thread)
         except Exception:
                 # As a fallback, attempt to run with a PrintHandler so CLI usage still prints something.
-                raw_response = questions_task.run(handlers=[PrintHandler()])
+                if MARVIN_AVAILABLE:
+                    raw_response = questions_task.run(handlers=[PrintHandler()])  # type: ignore[attr-defined]
+                else:
+                    raw_response = ""
 
         response_text = str(raw_response or "")
         print(f"🔍 Bob_3 raw response length: {len(response_text)}")
@@ -153,6 +169,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
         """Command-line interface for refinement question generation."""
         args = parse_args()
+
+        if not MARVIN_AVAILABLE:
+            print("Error: marvin library required for AI-based question generation")
+            print("Install with: pip install marvin")
+            return 1
 
         # Build a model instance for CLI usage (callers who already have a model instance should construct the config directly).
         model_instance = build_model(model_name=args.model)

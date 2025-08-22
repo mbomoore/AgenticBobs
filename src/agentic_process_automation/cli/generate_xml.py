@@ -13,9 +13,14 @@ import re
 from dataclasses import dataclass
 from typing import Literal, Optional, Union, List, Any
 
-import marvin
+try:
+    import marvin
+    from marvin.handlers.print_handler import PrintHandler
+    MARVIN_AVAILABLE = True
+except ImportError:
+    MARVIN_AVAILABLE = False
+
 # from core.bpmn_validator import validate_bpmn_string  # TODO: Fix import issues
-from marvin.handlers.print_handler import PrintHandler
 
 from .common import build_model, get_empty_process_model
 

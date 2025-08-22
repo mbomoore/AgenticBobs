@@ -11,8 +11,13 @@ from __future__ import annotations
 from typing import Dict, Tuple, Optional, cast
 from pydantic import BaseModel
 import os
-from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.models.openai import OpenAIModel
+
+try:
+    from pydantic_ai.providers.openai import OpenAIProvider
+    from pydantic_ai.models.openai import OpenAIModel
+    PYDANTIC_AI_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AI_AVAILABLE = False
 
 # Lazy imports to avoid import cost for scripts that don't need the LLM
 def build_model(
@@ -27,14 +32,16 @@ def build_model(
     - LLM_MODEL_NAME (default: qwen3:4b)
     - LLM_API_KEY (default: empty string)
     """
+    if not PYDANTIC_AI_AVAILABLE:
+        raise ImportError("pydantic-ai library required for model building")
 
     resolved_base_url = base_url or os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1")
     resolved_model_name = model_name or os.environ.get("LLM_MODEL_NAME", "qwen3:8b")
     resolved_api_key = api_key or os.environ.get("LLM_API_KEY", "")
 
-    provider = OpenAIProvider(base_url=resolved_base_url, api_key=resolved_api_key)
+    provider = OpenAIProvider(base_url=resolved_base_url, api_key=resolved_api_key)  # type: ignore[attr-defined]
     # Cast to satisfy strict type hints in provider stubs
-    model = OpenAIModel(model_name=cast(str, resolved_model_name), provider=provider)
+    model = OpenAIModel(model_name=cast(str, resolved_model_name), provider=provider)  # type: ignore[attr-defined]
     return model
 
 

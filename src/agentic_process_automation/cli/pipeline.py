@@ -12,7 +12,11 @@ import argparse
 import io
 import sys
 
-import marvin
+try:
+    import marvin
+    MARVIN_AVAILABLE = True
+except ImportError:
+    MARVIN_AVAILABLE = False
 
 from .common import build_model
 
@@ -28,10 +32,15 @@ from .generate_refinement_questions import generate_refinement_questions, Refine
 
 if __name__ == "__main__":
     
+    if not MARVIN_AVAILABLE:
+        print("Error: marvin library required for the interactive pipeline")
+        print("Install with: pip install marvin")
+        sys.exit(1)
+    
     small = build_model(model_name="qwen3:8b")
     large = build_model(model_name="gpt-oss:20b")
     
-    thread = marvin.Thread()
+    thread = marvin.Thread()  # type: ignore[attr-defined]
 
     
     while True:
@@ -41,19 +50,19 @@ if __name__ == "__main__":
         if not hasattr(thread, '_process_type'):
             input_text = input("What would you say that you do here? ")
             
-            thread._process_type = bob_1(small, input_text)
+            thread._process_type = bob_1(small, input_text)  # type: ignore[attr-defined]
         else:
             input_text = input(f"You can write your answers here: ")
             
             if input_text.lower() in ['exit', 'quit', 'q', 'stop']:
                 print("Exiting the pipeline.")
                 print("XML so far: ")
-                print(thread._current_xml)
+                print(thread._current_xml)  # type: ignore[attr-defined]
                 sys.exit(0)
             
         pgen_conf = ProcessGenerationConfig(
             description_or_answers=input_text,
-            process_type=thread._process_type,
+            process_type=thread._process_type,  # type: ignore[attr-defined]
             model_instance=large,
             current_thread=thread,
             current_xml=getattr(thread, '_current_xml', None)
@@ -61,13 +70,13 @@ if __name__ == "__main__":
         
         xml = generate_process_xml(pgen_conf)
         
-        thread._current_xml = xml.xml
+        thread._current_xml = xml.xml  # type: ignore[attr-defined]
         
         
         rfc = RefinementQuestionsConfig(
             original_description_or_answer=input_text,
-            generated_xml=thread._current_xml,
-            process_type=thread._process_type,
+            generated_xml=thread._current_xml,  # type: ignore[attr-defined]
+            process_type=thread._process_type,  # type: ignore[attr-defined]
             model_instance=large,
             current_thread=thread
         )
