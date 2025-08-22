@@ -26,6 +26,14 @@ from .generate_xml import generate_process_xml, ProcessGenerationConfig
 
 from .generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
 
+# Import centralized configuration
+try:
+    from ..config import get_ai_config
+    CONFIG_AVAILABLE = True
+except ImportError:
+    # Fallback for when imported from tests or different contexts
+    CONFIG_AVAILABLE = False
+
 # use the marvin.thread system make a conversation.
 
 
@@ -37,8 +45,15 @@ if __name__ == "__main__":
         print("Install with: pip install marvin")
         sys.exit(1)
     
-    small = build_model(model_name="qwen3:8b")
-    large = build_model(model_name="gpt-oss:20b")
+    # Use centralized config for model selection
+    if CONFIG_AVAILABLE:
+        ai_config = get_ai_config()
+        small = build_model(model_name=ai_config.default_small_model)
+        large = build_model(model_name=ai_config.default_large_model)
+    else:
+        # Fallback
+        small = build_model(model_name="qwen3:8b")
+        large = build_model(model_name="gpt-oss:20b")
     
     thread = marvin.Thread()  # type: ignore[attr-defined]
 

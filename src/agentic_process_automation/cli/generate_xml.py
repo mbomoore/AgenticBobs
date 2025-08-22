@@ -24,6 +24,14 @@ except ImportError:
 
 from .common import build_model, get_empty_process_model
 
+# Import centralized configuration
+try:
+    from ..config import get_ai_config
+    CONFIG_AVAILABLE = True
+except ImportError:
+    # Fallback for when imported from tests or different contexts
+    CONFIG_AVAILABLE = False
+
 ProcessType = Literal["BPMN", "DMN", "CMMN", "ArchiMate"]
 
 
@@ -44,10 +52,19 @@ class ProcessGenerationConfig:
     """
     description_or_answers: str
     process_type: ProcessType
-    model_name: Optional[str] = "qwen3:8b"
+    model_name: Optional[str] = None
     model_instance: Optional[Any] = None
     current_xml: Optional[str] = None
     current_thread: Optional[Any] = None
+    
+    def __post_init__(self):
+        if self.model_name is None:
+            # Use centralized config for default model
+            if CONFIG_AVAILABLE:
+                ai_config = get_ai_config()
+                self.model_name = ai_config.default_small_model
+            else:
+                self.model_name = "qwen3:8b"  # Fallback
 
 
 def generate_process_xml(config: ProcessGenerationConfig) -> ProcessGenerationResult:

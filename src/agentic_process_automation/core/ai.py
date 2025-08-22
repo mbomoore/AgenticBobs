@@ -17,16 +17,22 @@ from cytoolz import curry
 from icecream import ic
 import marvin
 
-
-DEFAULT_OLLAMA_URL = "http://localhost:11434"
-DEFAULT_MODEL = "gpt-oss:20b"
+from ..config import get_ai_config
 
 
 @dataclass
 class OllamaConfig:
-    base_url: str = DEFAULT_OLLAMA_URL
-    model: str = DEFAULT_MODEL
+    base_url: str = None
+    model: str = None
     timeout: float = 120.0
+    
+    def __post_init__(self):
+        if self.base_url is None or self.model is None:
+            ai_config = get_ai_config()
+            if self.base_url is None:
+                self.base_url = ai_config.ollama_base_url
+            if self.model is None:
+                self.model = ai_config.default_model
 
 
 def _client(base_url: str, timeout: float) -> httpx.Client:
@@ -36,8 +42,8 @@ def _client(base_url: str, timeout: float) -> httpx.Client:
 def chat(
     messages: Iterable[dict],
     *,
-    model: str = DEFAULT_MODEL,
-    base_url: str = DEFAULT_OLLAMA_URL,
+    model: str = None,
+    base_url: str = None,
     timeout: float = 120.0,
     stream: bool = False,
 ) -> str:
@@ -47,10 +53,15 @@ def chat(
     - messages: list of {role, content}
     - model/base_url/timeout: ollama connection
     - stream: if True, request streamed responses and concatenate
-
+    
     Returns
     - assistant text (str)
     """
+    ai_config = get_ai_config()
+    if model is None:
+        model = ai_config.default_model
+    if base_url is None:
+        base_url = ai_config.ollama_base_url
     url = "/api/chat"
     payload = {"model": model, "messages": list(messages), "stream": stream}
     ic("ollama.chat", payload)
@@ -208,13 +219,14 @@ def _configure_marvin_for_ollama(base_url: str | None = None) -> None:
 
     Args:
         base_url: If provided, set OPENAI_BASE_URL to this value; otherwise
-                  default to the standard local Ollama OpenAI-compatible path.
+                  use value from centralized configuration.
     """
-    os.environ.setdefault("OPENAI_API_KEY", "dummy-key")  # Ollama doesn't need real key
+    ai_config = get_ai_config()
+    os.environ.setdefault("OPENAI_API_KEY", ai_config.api_key or "dummy-key")
     if base_url:
         os.environ["OPENAI_BASE_URL"] = base_url
     else:
-        os.environ.setdefault("OPENAI_BASE_URL", "http://localhost:11434/v1")
+        os.environ.setdefault("OPENAI_BASE_URL", ai_config.ollama_api_url)
 
 
 def _normalize_model_for_marvin(model: str) -> str:
@@ -255,8 +267,8 @@ def _extract_user_and_system_text(messages: Iterable[dict]) -> tuple[str, list[s
 def agent_chat(
     messages: Iterable[dict],
     *,
-    model: str = DEFAULT_MODEL,
-    base_url: str = DEFAULT_OLLAMA_URL,
+    model: str = None,
+    base_url: str = None,
     timeout: float = 120.0,
     max_iterations: int = 5,
 ) -> str:
@@ -265,6 +277,11 @@ def agent_chat(
     Always uses a Marvin Agent configured for BPMN validation. No legacy
     fallback is provided. If Marvin fails, the exception will propagate.
     """
+    ai_config = get_ai_config()
+    if model is None:
+        model = ai_config.default_model
+    if base_url is None:
+        base_url = ai_config.ollama_base_url
     messages = list(messages)
 
     _configure_marvin_for_ollama(

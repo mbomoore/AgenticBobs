@@ -21,16 +21,22 @@ from src.agentic_process_automation.cli.common import build_model
 from src.agentic_process_automation.cli.detect_type import bob_1
 from src.agentic_process_automation.cli.generate_xml import generate_process_xml, ProcessGenerationConfig
 from src.agentic_process_automation.cli.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
+from src.agentic_process_automation.config import get_api_config, get_ai_config, get_process_config
 from backend.bpmn_layout import add_layout_to_bpmn
 
 logger = logging.getLogger(__name__)
 
+# Get configuration
+api_config = get_api_config()
+ai_config = get_ai_config()
+process_config = get_process_config()
+
 app = FastAPI(title="The Bobs 2.0 API", version="1.0.0")
 
-# Enable CORS for the frontend
+# Enable CORS using centralized configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],  # Vite dev server
+    allow_origins=api_config.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,8 +72,8 @@ def get_or_create_session(session_id: Optional[str] = None) -> ChatSession:
         process_type=None,
         bpmn_xml=None,
         thread=marvin.Thread(),
-        small_model=build_model(model_name="qwen3:8b"),
-        large_model=build_model(model_name="qwen3:8b")
+        small_model=build_model(model_name=ai_config.default_small_model),
+        large_model=build_model(model_name=ai_config.default_large_model)
     )
     sessions[new_session_id] = new_session
     return new_session
@@ -169,8 +175,8 @@ async def chat(request: ChatRequest):
             
             # Add layout to BPMN XML if it's BPMN type
             if session.process_type == "BPMN" and bpmn_result.xml:
-                session.bpmn_xml = add_layout_to_bpmn(bpmn_result.xml, layout_algorithm='dot')
-                logger.info("Added hierarchical layout to BPMN diagram")
+                session.bpmn_xml = add_layout_to_bpmn(bpmn_result.xml, layout_algorithm=process_config.layout_algorithm)
+                logger.info(f"Added {process_config.layout_algorithm} layout to BPMN diagram")
             else:
                 session.bpmn_xml = bpmn_result.xml
             
@@ -223,8 +229,8 @@ async def chat(request: ChatRequest):
             
             # Add layout to BPMN XML if it's BPMN type
             if session.process_type == "BPMN" and bpmn_result.xml:
-                session.bpmn_xml = add_layout_to_bpmn(bpmn_result.xml, layout_algorithm='dot')
-                logger.info("Added hierarchical layout to updated BPMN diagram")
+                session.bpmn_xml = add_layout_to_bpmn(bpmn_result.xml, layout_algorithm=process_config.layout_algorithm)
+                logger.info(f"Added {process_config.layout_algorithm} layout to updated BPMN diagram")
             else:
                 session.bpmn_xml = bpmn_result.xml
             
@@ -328,4 +334,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=api_config.host, port=api_config.port)
