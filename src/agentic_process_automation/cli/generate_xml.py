@@ -196,10 +196,16 @@ def generate_process_xml(config: ProcessGenerationConfig) -> ProcessGenerationRe
 
 
 def parse_args() -> argparse.Namespace:
+    # Get default model from centralized config
+    default_model = "qwen3:8b"  # Fallback
+    if CONFIG_AVAILABLE:
+        ai_config = get_ai_config()
+        default_model = ai_config.default_small_model
+        
     p = argparse.ArgumentParser(description="Generate process XML from description")
     p.add_argument("--description", required=True, help="Natural language description")
     p.add_argument("--type", required=True, choices=["BPMN", "DMN", "CMMN", "ArchiMate"], help="Process model type")
-    p.add_argument("--model", default="qwen3:8b", help="Model name to use (ignored if supplying a model instance programmatically)")
+    p.add_argument("--model", default=default_model, help="Model name to use (ignored if supplying a model instance programmatically)")
     p.add_argument("--xml-file", help="Path to an existing XML file to refine", default=None)
     p.add_argument("--xml-data", help="Inline XML data to refine (takes precedence over --xml-file)", default=None)
     return p.parse_args()
