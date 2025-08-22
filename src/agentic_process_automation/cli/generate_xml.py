@@ -24,6 +24,14 @@ except ImportError:
 
 from .common import build_model, get_empty_process_model
 
+# Import centralized configuration
+try:
+    from ..config import get_ai_config
+    CONFIG_AVAILABLE = True
+except ImportError:
+    # Fallback for when imported from tests or different contexts
+    CONFIG_AVAILABLE = False
+
 ProcessType = Literal["BPMN", "DMN", "CMMN", "ArchiMate"]
 
 
@@ -44,10 +52,19 @@ class ProcessGenerationConfig:
     """
     description_or_answers: str
     process_type: ProcessType
-    model_name: Optional[str] = "qwen3:8b"
+    model_name: Optional[str] = None
     model_instance: Optional[Any] = None
     current_xml: Optional[str] = None
     current_thread: Optional[Any] = None
+    
+    def __post_init__(self):
+        if self.model_name is None:
+            # Use centralized config for default model
+            if CONFIG_AVAILABLE:
+                ai_config = get_ai_config()
+                self.model_name = ai_config.default_small_model
+            else:
+                self.model_name = "qwen3:8b"  # Fallback
 
 
 def generate_process_xml(config: ProcessGenerationConfig) -> ProcessGenerationResult:
@@ -179,10 +196,16 @@ def generate_process_xml(config: ProcessGenerationConfig) -> ProcessGenerationRe
 
 
 def parse_args() -> argparse.Namespace:
+    # Get default model from centralized config
+    default_model = "qwen3:8b"  # Fallback
+    if CONFIG_AVAILABLE:
+        ai_config = get_ai_config()
+        default_model = ai_config.default_small_model
+        
     p = argparse.ArgumentParser(description="Generate process XML from description")
     p.add_argument("--description", required=True, help="Natural language description")
     p.add_argument("--type", required=True, choices=["BPMN", "DMN", "CMMN", "ArchiMate"], help="Process model type")
-    p.add_argument("--model", default="qwen3:8b", help="Model name to use (ignored if supplying a model instance programmatically)")
+    p.add_argument("--model", default=default_model, help="Model name to use (ignored if supplying a model instance programmatically)")
     p.add_argument("--xml-file", help="Path to an existing XML file to refine", default=None)
     p.add_argument("--xml-data", help="Inline XML data to refine (takes precedence over --xml-file)", default=None)
     return p.parse_args()

@@ -13,6 +13,14 @@ from ..core.pir import validate
 from ..core.viz import pir_to_mermaid
 from ..cli.generate_xml import generate_process_xml, ProcessGenerationConfig
 
+# Import centralized configuration
+try:
+    from ..config import get_ai_config
+    CONFIG_AVAILABLE = True
+except ImportError:
+    # Fallback for when imported from tests or different contexts
+    CONFIG_AVAILABLE = False
+
 SAMPLE_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Defs_Sample">
         <process id="Proc_Sample" isExecutable="false">
@@ -87,10 +95,16 @@ with col_left:
                 with st.chat_message("assistant"):
                         with st.spinner("Thinking with Ollama…"):
                                 try:
+                                        # Get model from centralized config
+                                        model_name = "gpt-oss:20b"  # Fallback
+                                        if CONFIG_AVAILABLE:
+                                            ai_config = get_ai_config()
+                                            model_name = ai_config.default_large_model
+                                            
                                         config = ProcessGenerationConfig(
                                                 description=user_msg,
                                                 process_type="BPMN",
-                                                model_name="gpt-oss:20b"
+                                                model_name=model_name
                                         )
                                         maybe_xml = generate_process_xml(config)
                                         

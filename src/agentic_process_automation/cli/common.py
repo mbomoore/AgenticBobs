@@ -19,6 +19,14 @@ try:
 except ImportError:
     PYDANTIC_AI_AVAILABLE = False
 
+# Import centralized configuration
+try:
+    from ..config import get_ai_config
+    CONFIG_AVAILABLE = True
+except ImportError:
+    # Fallback for when imported from tests or different contexts
+    CONFIG_AVAILABLE = False
+
 # Lazy imports to avoid import cost for scripts that don't need the LLM
 def build_model(
     base_url: Optional[str] = None,
@@ -28,16 +36,24 @@ def build_model(
     """Construct an OpenAI-compatible model for pydantic-ai.
 
     Environment fallbacks:
-    - LLM_BASE_URL (default: http://localhost:11434/v1)
-    - LLM_MODEL_NAME (default: qwen3:4b)
-    - LLM_API_KEY (default: empty string)
+    - LLM_BASE_URL (default from config)
+    - LLM_MODEL_NAME (default from config)
+    - LLM_API_KEY (default from config)
     """
     if not PYDANTIC_AI_AVAILABLE:
         raise ImportError("pydantic-ai library required for model building")
 
-    resolved_base_url = base_url or os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1")
-    resolved_model_name = model_name or os.environ.get("LLM_MODEL_NAME", "qwen3:8b")
-    resolved_api_key = api_key or os.environ.get("LLM_API_KEY", "")
+    # Use centralized config if available, otherwise fall back to environment/defaults
+    if CONFIG_AVAILABLE:
+        ai_config = get_ai_config()
+        resolved_base_url = base_url or os.environ.get("LLM_BASE_URL", ai_config.ollama_api_url)
+        resolved_model_name = model_name or os.environ.get("LLM_MODEL_NAME", ai_config.default_small_model)
+        resolved_api_key = api_key or os.environ.get("LLM_API_KEY", ai_config.api_key)
+    else:
+        # Fallback for when config is not available
+        resolved_base_url = base_url or os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1")
+        resolved_model_name = model_name or os.environ.get("LLM_MODEL_NAME", "qwen3:8b")
+        resolved_api_key = api_key or os.environ.get("LLM_API_KEY", "")
 
     provider = OpenAIProvider(base_url=resolved_base_url, api_key=resolved_api_key)  # type: ignore[attr-defined]
     # Cast to satisfy strict type hints in provider stubs
