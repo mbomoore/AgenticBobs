@@ -16,7 +16,7 @@ from typing import Any, Optional, Literal
 import marvin
 from marvin.handlers.print_handler import PrintHandler
 
-from marvin_scripts.common import build_model
+from .common import build_model
 
 ProcessType = Literal["BPMN", "DMN", "CMMN", "ArchiMate"]
 

@@ -9,11 +9,10 @@ import requests
 import json
 
 # Add the project paths to sys.path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "marvin_scripts"))
 
-from marvin_scripts.common import get_empty_process_model
+from src.agentic_process_automation.cli.common import get_empty_process_model
 
 
 def test_direct_ollama_call():

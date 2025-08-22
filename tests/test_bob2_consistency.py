@@ -7,12 +7,11 @@ import sys
 from pathlib import Path
 
 # Add the project paths to sys.path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "marvin_scripts"))
 
-from marvin_scripts.common import build_model
-from marvin_scripts.generate_xml import ProcessGenerationConfig, generate_process_xml
+from src.agentic_process_automation.cli.common import build_model
+from src.agentic_process_automation.cli.generate_xml import ProcessGenerationConfig, generate_process_xml
 
 
 def test_multiple_refinements():

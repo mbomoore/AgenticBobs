@@ -14,13 +14,13 @@ import sys
 
 import marvin
 
-from marvin_scripts.common import build_model
+from .common import build_model
 
-from marvin_scripts.detect_type import bob_1
+from .detect_type import bob_1
 
-from marvin_scripts.generate_xml import generate_process_xml, ProcessGenerationConfig
+from .generate_xml import generate_process_xml, ProcessGenerationConfig
 
-from marvin_scripts.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
+from .generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
 
 # use the marvin.thread system make a conversation.
 

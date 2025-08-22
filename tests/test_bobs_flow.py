@@ -8,15 +8,14 @@ import sys
 from pathlib import Path
 
 # Add the project paths to sys.path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "marvin_scripts"))
 sys.path.insert(0, str(project_root / "src"))
 
-from marvin_scripts.detect_type import bob_1
-from marvin_scripts.generate_xml import generate_process_xml, ProcessGenerationConfig
-from marvin_scripts.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
-from marvin_scripts.common import build_model
+from src.agentic_process_automation.cli.detect_type import bob_1
+from src.agentic_process_automation.cli.generate_xml import generate_process_xml, ProcessGenerationConfig
+from src.agentic_process_automation.cli.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
+from src.agentic_process_automation.cli.common import build_model
 
 
 def test_full_flow(user_message: str):

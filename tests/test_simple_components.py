@@ -7,11 +7,10 @@ import sys
 from pathlib import Path
 
 # Add the project paths to sys.path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "marvin_scripts"))
 
-from marvin_scripts.common import get_empty_process_model, build_model
+from src.agentic_process_automation.cli.common import get_empty_process_model, build_model
 
 
 def test_templates():
@@ -37,7 +36,7 @@ def test_bob_1_simple():
     print("=" * 50)
     
     try:
-        from marvin_scripts.detect_type import bob_1
+        from src.agentic_process_automation.cli.detect_type import bob_1
         model = build_model(model_name="qwen3:4b")
         
         test_messages = [

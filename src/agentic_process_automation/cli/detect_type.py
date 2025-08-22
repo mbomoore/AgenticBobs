@@ -11,7 +11,7 @@ import sys
 
 import marvin
 
-from marvin_scripts.common import build_model
+from .common import build_model
 
 
 

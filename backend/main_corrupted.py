@@ -16,10 +16,10 @@ from pydantic import BaseModel
 from core.adapters.bpmn import parse_bpmn
 from core.pir import validate
 from core.viz import pir_to_mermaid
-from marvin_scripts.common import build_model
-from marvin_scripts.detect_type import bob_1
-from marvin_scripts.generate_xml import generate_process_xml, ProcessGenerationConfig
-from marvin_scripts.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
+from src.agentic_process_automation.cli.common import build_model
+from src.agentic_process_automation.cli.detect_type import bob_1
+from src.agentic_process_automation.cli.generate_xml import generate_process_xml, ProcessGenerationConfig
+from src.agentic_process_automation.cli.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
 
 app = FastAPI(title="The Bobs 2.0 API", version="1.0.0")
 
