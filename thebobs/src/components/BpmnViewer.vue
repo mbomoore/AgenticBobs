@@ -8,14 +8,14 @@
       <div v-if="isLoading" class="loading-overlay">
         <div class="loading-content">
           <div class="loading-spinner"></div>
-          <p>Loading BPMN diagram...</p>
+          <p>Thinking about your process...</p>
           <small>This may take a few moments</small>
         </div>
       </div>
       <div v-if="error" class="error-overlay">
         <div class="error-content">
           <div class="error-icon">⚠️</div>
-          <h4>BPMN Loading Error</h4>
+          <h4>Process Loading Error</h4>
           <div class="error-details">
             <p class="error-message">{{ error }}</p>
             <details v-if="errorDetails" class="error-details-expand">
@@ -45,295 +45,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import BpmnJS from 'bpmn-js'
-import { layoutProcess } from 'bpmn-auto-layout'
+import CmmnJS from 'cmmn-js'
 import { useChatStore } from '../stores/chat'
-
-// Helper function to create horizontal layout
-function createHorizontalLayout(xml: string): string {
-  console.log('Creating horizontal layout...')
-  
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xml, 'text/xml')
-  
-  // Find process elements and sequence flows
-  const process = doc.querySelector('process')
-  if (!process) return xml
-  
-  const startEvents = Array.from(process.querySelectorAll('startEvent'))
-  const tasks = Array.from(process.querySelectorAll('task'))
-  const gateways = Array.from(process.querySelectorAll('exclusiveGateway'))
-  const endEvents = Array.from(process.querySelectorAll('endEvent'))
-  const sequenceFlows = Array.from(process.querySelectorAll('sequenceFlow'))
-  
-  // Build flow graph to determine order
-  const flowMap = new Map()
-  sequenceFlows.forEach(flow => {
-    const source = flow.getAttribute('sourceRef')
-    const target = flow.getAttribute('targetRef')
-    if (source && target) {
-      if (!flowMap.has(source)) flowMap.set(source, [])
-      flowMap.get(source).push(target)
-    }
-  })
-  
-  // Start with start events and follow the flow
-  const layoutOrder: Array<{id: string, level: number}> = []
-  const visited = new Set<string>()
-  
-  function traverse(elementId: string, level: number = 0) {
-    if (visited.has(elementId)) return
-    visited.add(elementId)
-    
-    layoutOrder.push({ id: elementId, level })
-    
-    const targets = flowMap.get(elementId) || []
-    targets.forEach((target: string) => traverse(target, level + 1))
-  }
-  
-  // Start traversal from start events
-  startEvents.forEach(start => traverse(start.getAttribute('id')!))
-  
-  // Add any remaining elements
-  const allElements = [...tasks, ...gateways, ...endEvents]
-  allElements.forEach((el: any) => {
-    const id = el.getAttribute('id')!
-    if (!visited.has(id)) {
-      layoutOrder.push({ id, level: layoutOrder.length })
-    }
-  })
-  
-  console.log('Layout order:', layoutOrder)
-  
-  // Create or update BPMNDiagram
-  let bpmnDiagram = doc.querySelector('bpmndi\\:BPMNDiagram, BPMNDiagram')
-  if (!bpmnDiagram) {
-    const definitionsElement = doc.documentElement
-    bpmnDiagram = doc.createElementNS('http://www.omg.org/spec/BPMN/20100524/DI', 'bpmndi:BPMNDiagram')
-    bpmnDiagram.setAttribute('id', 'BPMNDiagram_' + process.getAttribute('id'))
-    definitionsElement.appendChild(bpmnDiagram)
-  }
-  
-  let bpmnPlane = bpmnDiagram.querySelector('bpmndi\\:BPMNPlane, BPMNPlane')
-  if (!bpmnPlane) {
-    bpmnPlane = doc.createElementNS('http://www.omg.org/spec/BPMN/20100524/DI', 'bpmndi:BPMNPlane')
-    bpmnPlane.setAttribute('id', 'BPMNPlane_' + process.getAttribute('id'))
-    bpmnPlane.setAttribute('bpmnElement', process.getAttribute('id')!)
-    bpmnDiagram.appendChild(bpmnPlane)
-  } else {
-    // Clear existing shapes and edges
-    bpmnPlane.innerHTML = ''
-  }
-  
-  // Layout parameters
-  const startX = 50
-  const startY = 50  
-  const horizontalSpacing = 200
-  const verticalSpacing = 100
-  
-  // Group elements by level for better layout
-  const levelGroups = new Map<number, string[]>()
-  layoutOrder.forEach(item => {
-    if (!levelGroups.has(item.level)) levelGroups.set(item.level, [])
-    levelGroups.get(item.level)!.push(item.id)
-  })
-  
-  const elementPositions = new Map<string, {x: number, y: number, width: number, height: number}>()
-  
-  // Position elements horizontally by level
-  levelGroups.forEach((elementIds, level) => {
-    elementIds.forEach((elementId: string, indexInLevel: number) => {
-      const x = startX + (level * horizontalSpacing)
-      const y = startY + (indexInLevel * verticalSpacing)
-      
-      // Get element type to determine dimensions
-      const element = doc.getElementById(elementId)
-      let width = 100, height = 80
-      
-      if (element?.tagName === 'startEvent' || element?.tagName === 'endEvent') {
-        width = height = 36
-      } else if (element?.tagName === 'exclusiveGateway') {
-        width = height = 50
-      }
-      
-      // Store position with actual dimensions for edge calculations
-      elementPositions.set(elementId, { x, y, width, height })
-      
-      // Create BPMNShape
-      const shape = doc.createElementNS('http://www.omg.org/spec/BPMN/20100524/DI', 'bpmndi:BPMNShape')
-      shape.setAttribute('id', elementId + '_di')
-      shape.setAttribute('bpmnElement', elementId)
-      
-      const bounds = doc.createElementNS('http://www.omg.org/spec/DD/20100524/DC', 'dc:Bounds')
-      bounds.setAttribute('x', x.toString())
-      bounds.setAttribute('y', y.toString())
-      bounds.setAttribute('width', width.toString())
-      bounds.setAttribute('height', height.toString())
-      
-      shape.appendChild(bounds)
-      bpmnPlane.appendChild(shape)
-    })
-  })
-  
-  console.log('Horizontal layout positions:', Object.fromEntries(elementPositions))
-  
-  // Add edges
-  sequenceFlows.forEach(flow => {
-    const flowId = flow.getAttribute('id')!
-    const sourceRef = flow.getAttribute('sourceRef')!
-    const targetRef = flow.getAttribute('targetRef')!
-    
-    const sourcePos = elementPositions.get(sourceRef)
-    const targetPos = elementPositions.get(targetRef)
-    
-    if (sourcePos && targetPos) {
-      const edge = doc.createElementNS('http://www.omg.org/spec/BPMN/20100524/DI', 'bpmndi:BPMNEdge')
-      edge.setAttribute('id', flowId + '_di')
-      edge.setAttribute('bpmnElement', flowId)
-      
-      // Create waypoints for proper connection points
-      const waypoint1 = doc.createElementNS('http://www.omg.org/spec/DD/20100524/DI', 'di:waypoint')
-      const waypoint2 = doc.createElementNS('http://www.omg.org/spec/DD/20100524/DI', 'di:waypoint')
-      
-      // Calculate proper exit point (right edge center of source)
-      const sourceExitX = sourcePos.x + sourcePos.width
-      const sourceExitY = sourcePos.y + (sourcePos.height / 2)
-      
-      // Calculate proper entry point (left edge center of target)
-      const targetEntryX = targetPos.x
-      const targetEntryY = targetPos.y + (targetPos.height / 2)
-      
-      waypoint1.setAttribute('x', sourceExitX.toString())
-      waypoint1.setAttribute('y', sourceExitY.toString())
-      waypoint2.setAttribute('x', targetEntryX.toString())
-      waypoint2.setAttribute('y', targetEntryY.toString())
-      
-      edge.appendChild(waypoint1)
-      edge.appendChild(waypoint2)
-      bpmnPlane.appendChild(edge)
-      
-      console.log(`Added edge ${flowId}: (${sourceExitX},${sourceExitY}) -> (${targetEntryX},${targetEntryY})`)
-    }
-  })
-  
-  const result = new XMLSerializer().serializeToString(doc)
-  console.log('Created horizontal layout with', layoutOrder.length, 'elements')
-  return result
-}
-function addMissingEdges(xml: string): string {
-  console.log('Adding missing BPMNEdge elements...')
-  
-  // Parse the XML to find sequence flows and shapes
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xml, 'text/xml')
-  
-  // Find all sequence flows
-  const sequenceFlows = doc.querySelectorAll('sequenceFlow')
-  const shapes = doc.querySelectorAll('bpmndi\\:BPMNShape, BPMNShape')
-  
-  console.log(`Found ${sequenceFlows.length} sequence flows and ${shapes.length} shapes`)
-  
-  if (sequenceFlows.length === 0) {
-    console.log('No sequence flows found, returning original XML')
-    return xml
-  }
-  
-  // Find the BPMNPlane element where we'll add edges
-  const bpmnPlane = doc.querySelector('bpmndi\\:BPMNPlane, BPMNPlane')
-  if (!bpmnPlane) {
-    console.log('No BPMNPlane found, returning original XML')
-    return xml
-  }
-  
-  // Create a map of element positions from existing shapes
-  const shapePositions = new Map()
-  shapes.forEach(shape => {
-    const bpmnElement = shape.getAttribute('bpmnElement')
-    const bounds = shape.querySelector('dc\\:Bounds, Bounds')
-    if (bpmnElement && bounds) {
-      const x = parseFloat(bounds.getAttribute('x') || '0')
-      const y = parseFloat(bounds.getAttribute('y') || '0')
-      const width = parseFloat(bounds.getAttribute('width') || '0')
-      const height = parseFloat(bounds.getAttribute('height') || '0')
-      shapePositions.set(bpmnElement, { 
-        x: x + width / 2, 
-        y: y + height / 2,
-        width,
-        height
-      })
-    }
-  })
-  
-  console.log('Shape positions:', Object.fromEntries(shapePositions))
-  
-  // Check layout direction by analyzing positions
-  const positions = Array.from(shapePositions.values())
-  if (positions.length > 1) {
-    const xSpread = Math.max(...positions.map(p => p.x)) - Math.min(...positions.map(p => p.x))
-    const ySpread = Math.max(...positions.map(p => p.y)) - Math.min(...positions.map(p => p.y))
-    console.log(`Layout analysis: X-spread=${xSpread}, Y-spread=${ySpread}`)
-    console.log(`Layout appears to be: ${xSpread > ySpread ? 'horizontal' : 'vertical'}`)
-  }
-  
-  // Add BPMNEdge for each sequence flow
-  sequenceFlows.forEach(flow => {
-    const flowId = flow.getAttribute('id')
-    const sourceRef = flow.getAttribute('sourceRef')
-    const targetRef = flow.getAttribute('targetRef')
-    
-    if (!flowId || !sourceRef || !targetRef) return
-    
-    const sourcePos = shapePositions.get(sourceRef)
-    const targetPos = shapePositions.get(targetRef)
-    
-    if (!sourcePos || !targetPos) {
-      console.log(`Missing positions for flow ${flowId}: ${sourceRef} -> ${targetRef}`)
-      return
-    }
-    
-    // Create BPMNEdge element
-    const edge = doc.createElementNS('http://www.omg.org/spec/BPMN/20100524/DI', 'bpmndi:BPMNEdge')
-    edge.setAttribute('id', `${flowId}_di`)
-    edge.setAttribute('bpmnElement', flowId)
-    
-    // Create waypoints for the edge (improved routing)
-    const waypoint1 = doc.createElementNS('http://www.omg.org/spec/DD/20100524/DI', 'di:waypoint')
-    const waypoint2 = doc.createElementNS('http://www.omg.org/spec/DD/20100524/DI', 'di:waypoint')
-    
-    // Calculate exit and entry points based on element positions
-    let sourceX = sourcePos.x
-    let sourceY = sourcePos.y
-    let targetX = targetPos.x
-    let targetY = targetPos.y
-    
-    // Adjust source exit point (right side of source element)
-    if (sourcePos.width) {
-      sourceX = sourcePos.x + sourcePos.width / 2
-    }
-    
-    // Adjust target entry point (left side of target element)  
-    if (targetPos.width) {
-      targetX = targetPos.x - targetPos.width / 2
-    }
-    
-    waypoint1.setAttribute('x', sourceX.toString())
-    waypoint1.setAttribute('y', sourceY.toString())
-    waypoint2.setAttribute('x', targetX.toString())
-    waypoint2.setAttribute('y', targetY.toString())
-    
-    edge.appendChild(waypoint1)
-    edge.appendChild(waypoint2)
-    bpmnPlane.appendChild(edge)
-    
-    console.log(`Added edge for ${flowId}: (${sourceX},${sourceY}) -> (${targetX},${targetY})`)
-  })
-  
-  // Serialize back to string
-  const serializer = new XMLSerializer()
-  const result = serializer.serializeToString(doc)
-  
-  console.log(`Added ${sequenceFlows.length} BPMNEdge elements`)
-  return result
-}
 
 const props = defineProps<{
   bpmnXml?: string
@@ -348,7 +61,7 @@ const bpmnContainer = ref<HTMLElement>()
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const errorDetails = ref<string | null>(null)
-const viewer = ref<BpmnJS | null>(null)
+const viewer = ref<BpmnJS | any | null>(null)
 
 const chatStore = useChatStore()
 
@@ -356,27 +69,54 @@ const initializeViewer = () => {
   if (!bpmnContainer.value) return
 
   try {
-    viewer.value = new BpmnJS({
-      container: bpmnContainer.value,
-      width: '100%',
-      height: '100%'
-    })
+    // Get the process type from the chat store
+    const processType = chatStore.currentProcessType
+    console.log('Initializing viewer for process type:', processType)
     
-    // Add error handling for BPMN.js internal errors
+    // Choose the appropriate viewer based on process type
+    if (processType === 'CMMN') {
+      console.log('Creating CMMN viewer')
+      try {
+        viewer.value = new CmmnJS({
+          container: bpmnContainer.value,
+          width: '100%',
+          height: '100%'
+        })
+        console.log('CMMN viewer created successfully')
+      } catch (cmmnError: any) {
+        console.warn('CMMN viewer failed, falling back to BPMN:', cmmnError)
+        // Fallback to BPMN viewer if CMMN fails
+        viewer.value = new BpmnJS({
+          container: bpmnContainer.value,
+          width: '100%',
+          height: '100%'
+        })
+      }
+    } else {
+      // Default to BPMN viewer for BPMN, DMN, ArchiMate, and unknown types
+      console.log('Creating BPMN viewer for process type:', processType || 'default')
+      viewer.value = new BpmnJS({
+        container: bpmnContainer.value,
+        width: '100%',
+        height: '100%'
+      })
+    }
+    
+    // Add error handling for viewer internal errors
     viewer.value.on('import.render.complete', () => {
-      console.log('BPMN diagram rendered successfully')
+      console.log(`${processType || 'BPMN'} diagram rendered successfully`)
     })
     
     viewer.value.on('error', (event: any) => {
-      console.error('BPMN.js error:', event.error)
-      error.value = `BPMN.js error: ${event.error.message || 'Unknown error'}`
+      console.error(`${processType || 'BPMN'} viewer error:`, event.error)
+      error.value = `${processType || 'BPMN'} viewer error: ${event.error.message || 'Unknown error'}`
       errorDetails.value = event.error.stack || JSON.stringify(event.error, null, 2)
       emit('error', error.value)
     })
     
   } catch (err: any) {
-    console.error('Failed to initialize BPMN viewer:', err)
-    error.value = `Failed to initialize BPMN viewer: ${err.message || 'Unknown error'}`
+    console.error('Failed to initialize viewer:', err)
+    error.value = `Failed to initialize viewer: ${err.message || 'Unknown error'}`
     errorDetails.value = err.stack || JSON.stringify(err, null, 2)
     emit('error', error.value)
   }
@@ -386,90 +126,17 @@ const loadBpmn = async (xml: string) => {
   if (!viewer.value || !xml) return
 
   try {
+    console.log('🚀 loadBpmn called with XML length:', xml.length)
+    console.log('🚀 XML preview:', xml.substring(0, 300) + '...')
+    
     isLoading.value = true
     error.value = null
     errorDetails.value = null
 
-    // Check if the BPMN has layout information (more comprehensive check)
-    const hasLayout = xml.includes('bpmndi:BPMNShape') || xml.includes('bpmndi:BPMNEdge') || xml.includes('di:waypoint')
-    
-    let processedXml = xml
-    
-    console.log('BPMN Layout Check:', {
-      hasShape: xml.includes('bpmndi:BPMNShape'),
-      hasEdge: xml.includes('bpmndi:BPMNEdge'), 
-      hasWaypoint: xml.includes('di:waypoint'),
-      hasLayout: hasLayout,
-      xmlLength: xml.length
-    })
-    
-    // If no layout information, use bpmn-auto-layout to add it
-    if (!hasLayout) {
-      console.log('No layout information found...')
-      console.log('Trying bpmn-js native import first (it might auto-layout)')
-      
-      // First try: Let bpmn-js handle the layout natively
-      try {
-        await viewer.value!.importXML(xml)
-        console.log('bpmn-js handled layout natively - checking result...')
-        
-        // Check if bpmn-js added any layout info
-        const elementRegistry = viewer.value!.get('elementRegistry') as any
-        const elements = elementRegistry.getAll()
-        
-        console.log('Elements found after native import:', elements.length)
-        console.log('Element types:', elements.map((el: any) => `${el.id}: ${el.type}`))
-        
-        // Check if sequence flows are visible
-        const sequenceFlows = elements.filter((el: any) => el.type === 'bpmn:SequenceFlow')
-        console.log('Sequence flows found:', sequenceFlows.length)
-        
-        if (sequenceFlows.length > 0) {
-          console.log('Success! bpmn-js handled layout natively')
-          isLoading.value = false
-          error.value = null
-          errorDetails.value = null
-          return
-        }
-      } catch (nativeError: any) {
-        console.log('bpmn-js native import failed, trying auto-layout...', nativeError.message)
-      }
-      
-      // Second try: Use our custom horizontal layout
-      console.log('Creating custom horizontal layout...')
-      try {
-        processedXml = createHorizontalLayout(xml)
-        console.log('Custom horizontal layout applied successfully, new length:', processedXml.length)
-        
-        // Check layout results
-        const hasShapeAfter = processedXml.includes('bpmndi:BPMNShape')
-        const hasEdgeAfter = processedXml.includes('bpmndi:BPMNEdge')
-        const hasWaypointAfter = processedXml.includes('di:waypoint')
-        
-        console.log('Custom layout check:', {
-          hasShapeAfter,
-          hasEdgeAfter,
-          hasWaypointAfter,
-          xmlLength: processedXml.length
-        })
-        
-        const shapeCount = (processedXml.match(/bpmndi:BPMNShape/g) || []).length
-        const edgeCount = (processedXml.match(/bpmndi:BPMNEdge/g) || []).length
-        const waypointCount = (processedXml.match(/di:waypoint/g) || []).length
-        
-        console.log(`Custom layout results: ${shapeCount} shapes, ${edgeCount} edges, ${waypointCount} waypoints`)
-        
-      } catch (layoutError: any) {
-        console.error('Custom horizontal layout failed:', layoutError)
-        error.value = `Layout failed: ${layoutError.message || 'Unknown error'}`
-        errorDetails.value = layoutError.stack || JSON.stringify(layoutError, null, 2)
-        return
-      }
-    } else {
-      console.log('Layout information detected, using original XML')
-    }
-
-    await viewer.value.importXML(processedXml)
+    // Since layout is now handled on the backend, we can directly import the XML
+    console.log('Importing XML with backend layout processing')
+    await viewer.value.importXML(xml)
+    console.log('✅ XML import successful')
     
     // Enhanced zoom and centering
     await nextTick() // Wait for DOM to update
@@ -477,20 +144,24 @@ const loadBpmn = async (xml: string) => {
     try {
       const canvas = viewer.value.get('canvas') as any
       
-      // First zoom to fit viewport
+      // First zoom to fit viewport with padding
       canvas.zoom('fit-viewport', 'auto')
       
-      // Add some padding and center
+      // Add some padding and center with a slight delay to ensure layout is complete
       setTimeout(() => {
-        canvas.zoom('fit-viewport', true)
-        console.log('Applied enhanced zoom-to-fit with centering')
-      }, 100)
+        canvas.zoom('fit-viewport', { x: 20, y: 20, width: -40, height: -40 })
+        console.log('Applied enhanced zoom-to-fit with padding and centering')
+      }, 150)
       
     } catch (zoomError: any) {
       console.warn('Zoom enhancement failed:', zoomError)
       // Fallback to basic zoom
-      const canvas = viewer.value.get('canvas') as any
-      canvas.zoom('fit-viewport')
+      try {
+        const canvas = viewer.value.get('canvas') as any
+        canvas.zoom('fit-viewport')
+      } catch (fallbackError: any) {
+        console.warn('Fallback zoom also failed:', fallbackError)
+      }
     }
     
     emit('loaded')
@@ -528,9 +199,52 @@ const loadSample = async () => {
 watch(
   () => props.bpmnXml,
   async (newXml) => {
+    console.log('🔍 BpmnViewer - XML prop changed:', newXml ? 'XML RECEIVED' : 'NO XML')
+    if (newXml) {
+      console.log('🔍 BpmnViewer - XML length:', newXml.length)
+      console.log('🔍 BpmnViewer - XML preview:', newXml.substring(0, 200) + '...')
+    }
+    
     if (newXml && viewer.value) {
       await nextTick() // Ensure DOM is updated
       loadBpmn(newXml)
+    } else if (!newXml && viewer.value) {
+      // Clear the diagram when bpmnXml is null/undefined
+      try {
+        console.log('Clearing diagram')
+        await viewer.value.clear()
+        error.value = null
+        errorDetails.value = null
+      } catch (clearError: any) {
+        console.warn('Failed to clear diagram:', clearError)
+      }
+    }
+  },
+  { immediate: false }
+)
+
+// Watch for changes in process type to reinitialize viewer
+watch(
+  () => chatStore.currentProcessType,
+  async (newProcessType, oldProcessType) => {
+    if (newProcessType !== oldProcessType && newProcessType) {
+      // Destroy old viewer if it exists
+      if (viewer.value) {
+        try {
+          console.log('Destroying old viewer')
+          viewer.value.destroy()
+        } catch (destroyError: any) {
+          console.warn('Error destroying viewer:', destroyError)
+        }
+        viewer.value = null
+      }
+      // Reinitialize with new viewer type
+      await nextTick()
+      initializeViewer()
+      // Reload XML if we have it
+      if (props.bpmnXml) {
+        loadBpmn(props.bpmnXml)
+      }
     }
   },
   { immediate: false }
@@ -831,5 +545,29 @@ onUnmounted(() => {
 :deep(.djs-shape.highlight) {
   stroke: #3498db;
   stroke-width: 2;
+}
+
+/* Hide event labels (start/end event names) */
+:deep(.djs-shape[data-element-id*="Event"] + .djs-label),
+:deep(.djs-label[data-element-id*="Event"]) {
+  display: none;
+}
+
+/* Improve text appearance without forcing positioning */
+:deep(.djs-label) {
+  font-size: 12px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Better task label styling */
+:deep(.djs-shape[data-element-id*="Task"] .djs-label) {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Gateway labels */
+:deep(.djs-shape[data-element-id*="Gateway"] .djs-label) {
+  font-size: 10px;
+  font-weight: 500;
 }
 </style>

@@ -30,18 +30,25 @@ source = { editable = "." }
 dependencies = [
     { name = "anywidget" },
     { name = "cytoolz" },
+    { name = "fastapi" },
+    { name = "graphviz" },
     { name = "httpx" },
     { name = "icecream" },
     { name = "ipywidgets" },
     { name = "jupyterlab-widgets" },
+    { name = "marvin" },
     { name = "matplotlib" },
+    { name = "networkx" },
     { name = "numpy" },
     { name = "pydantic" },
     { name = "pytest" },
+    { name = "python-multipart" },
     { name = "result" },
     { name = "seaborn" },
     { name = "simpy" },
+    { name = "spiffworkflow" },
     { name = "streamlit" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -99,6 +106,8 @@ requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "cytoolz", specifier = ">=0.12.3" },
     { name = "duckdb", marker = "extra == 'data'", specifier = ">=0.9.0" },
+    { name = "fastapi", specifier = ">=0.116.1" },
+    { name = "graphviz", specifier = ">=0.21" },
     { name = "holidays", marker = "extra == 'data'", specifier = ">=0.34" },
     { name = "httpx", specifier = ">=0.27.2" },
     { name = "icecream", specifier = ">=2.1.6" },
@@ -106,9 +115,11 @@ requires-dist = [
     { name = "ipywidgets", specifier = ">=8.1.7" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.12.0" },
     { name = "jupyterlab-widgets", specifier = ">=3.0.10" },
+    { name = "marvin", specifier = ">=3.1.5" },
     { name = "marvin", marker = "extra == 'ai'", specifier = ">=3.1.4" },
     { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.5.0" },
+    { name = "networkx", specifier = ">=3.5" },
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "opentelemetry-api", marker = "extra == 'monitoring'", specifier = ">=1.20.0" },
     { name = "opentelemetry-exporter-jaeger", marker = "extra == 'monitoring'", specifier = ">=1.20.0" },
@@ -119,11 +130,14 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "result", specifier = ">=0.17.0" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "simpy", specifier = ">=4.1.1" },
+    { name = "spiffworkflow", specifier = ">=3.1.1" },
     { name = "spiffworkflow", marker = "extra == 'process'", specifier = ">=3.1.1" },
     { name = "streamlit", specifier = ">=1.36.0" },
+    { name = "uvicorn", specifier = ">=0.35.0" },
     { name = "workalendar", marker = "extra == 'data'", specifier = ">=17.0.0" },
 ]
 provides-extras = ["ai", "process", "optimization", "monitoring", "data", "dev", "all"]
@@ -858,6 +872,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/91/50/a9d80c47ff289c611ff12e63f7c5d13942c65d68125160cefd768c73e6e4/executing-2.2.0.tar.gz", hash = "sha256:5d108c028108fe2551d1a7b2e8b713341e2cb4fc0aa7dcf966fa4327a5226755", size = 978693, upload-time = "2025-01-22T15:41:29.403Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7b/8f/c4d9bafc34ad7ad5d8dc16dd1347ee0e507a52c3adb6bfa8887e1c6a26ba/executing-2.2.0-py2.py3-none-any.whl", hash = "sha256:11387150cad388d62750327a53d3339fad4888b39a6fe233c3afbb54ecffd3aa", size = 26702, upload-time = "2025-01-22T15:41:25.929Z" },
+]
+
+[[package]]
+name = "fastapi"
+version = "0.116.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/78/d7/6c8b3bfe33eeffa208183ec037fee0cce9f7f024089ab1c5d12ef04bd27c/fastapi-0.116.1.tar.gz", hash = "sha256:ed52cbf946abfd70c5a0dccb24673f0670deeb517a88b3544d03c2a6bf283143", size = 296485, upload-time = "2025-07-11T16:22:32.057Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/47/d63c60f59a59467fda0f93f46335c9d18526d7071f025cb5b89d5353ea42/fastapi-0.116.1-py3-none-any.whl", hash = "sha256:c46ac7c312df840f0c9e220f7964bada936781bc4e2e6eb71f1c4d7553786565", size = 95631, upload-time = "2025-07-11T16:22:30.485Z" },
 ]
 
 [[package]]

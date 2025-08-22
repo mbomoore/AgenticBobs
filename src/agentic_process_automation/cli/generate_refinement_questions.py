@@ -54,11 +54,18 @@ def generate_refinement_questions(config: RefinementQuestionsConfig) -> list[str
                 model=model,
                 instructions=(
                         "You are an expert business process analyst. "
-                        "Your job is to analyze a generated XML process diagram and the original description, "
-                        "then generate exactly 3 thoughtful questions that would help refine and improve the process model. "
-                        "Focus on areas like missing steps, unclear decision points, exception handling, "
-                        "role responsibilities, timing constraints, or integration points. "
-                        "Make your questions specific and actionable."
+                        "Your ONLY job is to generate exactly 3 refinement questions. "
+                        "CRITICAL RULES:\n"
+                        "1. Generate EXACTLY 3 questions, no more, no less\n"
+                        "2. Number each question (1., 2., 3.)\n"
+                        "3. Focus on practical process improvements\n"
+                        "4. Questions should address: missing steps, decision points, exception handling, roles, timing, or integrations\n"
+                        "5. Make questions specific and actionable\n"
+                        "6. ALWAYS provide 3 questions even if the process seems complete\n\n"
+                        "Format your response as:\n"
+                        "1. [First question about the process]\n"
+                        "2. [Second question about the process]\n"
+                        "3. [Third question about the process]"
                 ),
         )
 
@@ -83,19 +90,53 @@ def generate_refinement_questions(config: RefinementQuestionsConfig) -> list[str
                 raw_response = questions_task.run(handlers=[PrintHandler()])
 
         response_text = str(raw_response or "")
+        print(f"🔍 Bob_3 raw response length: {len(response_text)}")
+        print(f"🔍 Bob_3 response preview: {repr(response_text[:200])}")
 
-        # Parse questions from the response. Accept numbered or bulleted lists; fall back to splitting into lines.
-        candidate_lines = [line.strip() for line in response_text.splitlines() if line.strip()]
-        questions_list = [
-                line.lstrip("1234567890. ").strip(" -•")
-                for line in candidate_lines
-                if line.startswith(("1.", "2.", "3.", "-", "•")) or len(candidate_lines) <= 3
-        ]
-
-        # If parsing produced no items but there are lines, return up to the first 3 non-empty lines.
-        if not questions_list and candidate_lines:
-                questions_list = candidate_lines[:3]
-
+        # Enhanced question parsing with multiple fallback strategies
+        questions_list = []
+        
+        # Strategy 1: Look for numbered questions (1., 2., 3.)
+        import re
+        numbered_pattern = r'(\d+)\.\s*(.+?)(?=\d+\.|$)'
+        numbered_matches = re.findall(numbered_pattern, response_text, re.DOTALL | re.MULTILINE)
+        
+        if numbered_matches:
+                questions_list = [match[1].strip() for match in numbered_matches if match[1].strip()]
+                print(f"✅ Found {len(questions_list)} numbered questions")
+        
+        # Strategy 2: Split by lines and look for question-like content
+        if not questions_list:
+                candidate_lines = [line.strip() for line in response_text.splitlines() if line.strip()]
+                for line in candidate_lines:
+                        # Remove common prefixes and check if it looks like a question
+                        clean_line = line.lstrip("1234567890. -•").strip()
+                        if clean_line and (clean_line.endswith('?') or len(clean_line) > 20):
+                                questions_list.append(clean_line)
+                                if len(questions_list) >= 3:
+                                        break
+                print(f"✅ Found {len(questions_list)} questions from line parsing")
+        
+        # Strategy 3: Generate fallback questions if none found
+        if not questions_list:
+                print("⚠️  No questions found, generating fallback questions")
+                fallback_questions = [
+                        f"What specific roles or stakeholders should be responsible for each step in this {config.process_type} process?",
+                        f"How should exception scenarios or error conditions be handled within this process?",
+                        f"What approval workflows or decision points might be missing from the current {config.process_type} model?"
+                ]
+                questions_list = fallback_questions
+        
+        # Ensure we have exactly 3 questions
+        if len(questions_list) < 3:
+                # Pad with generic questions
+                while len(questions_list) < 3:
+                        questions_list.append(f"What additional considerations should be included for this {config.process_type} process?")
+        elif len(questions_list) > 3:
+                # Trim to first 3
+                questions_list = questions_list[:3]
+        
+        print(f"✅ Final question count: {len(questions_list)}")
         return questions_list
 
 

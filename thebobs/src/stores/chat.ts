@@ -6,6 +6,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp?: string
+  questions?: string[]  // Follow-up questions associated with this message
 }
 
 export interface ChatResponse {
@@ -22,7 +23,6 @@ export const useChatStore = defineStore('chat', () => {
   const sessionId = ref<string | null>(null)
   const currentBpmn = ref<string | null>(null)
   const currentProcessType = ref<string | null>(null)
-  const refinementQuestions = ref<string[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -64,23 +64,34 @@ export const useChatStore = defineStore('chat', () => {
 
       // Update BPMN if provided
       if (data.bpmn_xml) {
+        console.log('🎯 Updating BPMN XML:', data.bpmn_xml.substring(0, 100) + '...')
         currentBpmn.value = data.bpmn_xml
+        console.log('🎯 Current BPMN is now:', currentBpmn.value ? 'SET' : 'NULL')
+      } else {
+        console.log('❌ No BPMN XML in response')
       }
 
       // Update process type if provided
       if (data.process_type) {
+        console.log('🎯 Updating process type:', data.process_type)
         currentProcessType.value = data.process_type
       }
 
-      // Update refinement questions
-      refinementQuestions.value = data.questions || []
-
-      // Add assistant message
+      // Add assistant message with questions
       const assistantMessage: ChatMessage = {
         role: 'assistant',
         content: data.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        questions: data.questions || []
       }
+      
+      // Debug logging
+      if (data.questions && data.questions.length > 0) {
+        console.log(`✅ Received ${data.questions.length} questions:`, data.questions)
+      } else {
+        console.log('❌ No questions received in response')
+      }
+      
       messages.value.push(assistantMessage)
 
     } catch (err) {
@@ -101,8 +112,8 @@ export const useChatStore = defineStore('chat', () => {
     sessionId.value = null
     currentBpmn.value = null
     currentProcessType.value = null
-    refinementQuestions.value = []
     error.value = null
+    isLoading.value = false
   }
 
   const validateBpmn = async (bpmnXml: string) => {
@@ -157,7 +168,6 @@ export const useChatStore = defineStore('chat', () => {
     sessionId,
     currentBpmn,
     currentProcessType,
-    refinementQuestions,
     isLoading,
     error,
     

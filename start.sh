@@ -24,7 +24,7 @@ trap cleanup SIGINT
 # Start backend server in background
 echo "Starting backend server on http://localhost:8000..."
 cd backend
-python dev_server.py &
+uv run python dev_server.py &
 BACKEND_PID=$!
 cd ..
 

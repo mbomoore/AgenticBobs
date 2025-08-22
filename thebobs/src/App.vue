@@ -14,58 +14,105 @@
 
         <!-- BPMN Viewer Section -->
         <div class="viewer-section">
-          <div class="viewer-header">
-            <h2>Process Diagram</h2>
-            <div class="viewer-controls">
-              <span v-if="chatStore.currentProcessType" class="process-type">
-                {{ chatStore.currentProcessType }}
-              </span>
-              <button 
-                v-if="chatStore.currentBpmn" 
-                @click="downloadBpmn"
-                class="download-btn"
+          <div class="viewer-tabs">
+            <button 
+              class="tab-button active" 
+              @click="activeTab = 'diagram'"
+            >
+              Process Diagram
+            </button>
+            <button 
+              class="tab-button disabled" 
+              disabled
+            >
+              Process Analysis
+            </button>
+            <button 
+              class="tab-button disabled" 
+              disabled
+            >
+              Agent Prompts
+            </button>
+          </div>
+          
+          <div v-show="activeTab === 'diagram'" class="tab-content">
+            <div class="viewer-header">
+              <div class="viewer-title">
+                <h2>Process Diagram</h2>
+                <span v-if="chatStore.currentProcessType" class="process-type">
+                  {{ chatStore.currentProcessType }}
+                </span>
+              </div>
+              <div class="viewer-controls">
+                <button 
+                  v-if="chatStore.currentBpmn" 
+                  @click="copyXmlToClipboard"
+                  class="copy-btn"
+                  title="Copy XML to clipboard"
+                >
+                  📋 Copy XML
+                </button>
+                <button 
+                  v-if="chatStore.currentBpmn" 
+                  @click="downloadBpmn"
+                  class="download-btn"
+                >
+                  Download XML
+                </button>
+              </div>
+            </div>
+            
+            <div class="viewer-container">
+              <BpmnViewer 
+                :bpmn-xml="chatStore.currentBpmn || undefined"
+                @error="handleViewerError"
+                @loaded="handleViewerLoaded"
+              />
+            </div>
+
+            <!-- Validation Status -->
+            <div v-if="validationStatus" class="validation-status">
+              <div 
+                class="status-indicator"
+                :class="{ 
+                  'valid': validationStatus.is_valid, 
+                  'invalid': !validationStatus.is_valid 
+                }"
               >
-                Download XML
-              </button>
+                {{ validationStatus.is_valid ? 'Valid' : 'Invalid' }} BPMN
+              </div>
+              
+              <div v-if="validationStatus.errors.length > 0" class="errors">
+                <h4>Errors:</h4>
+                <ul>
+                  <li v-for="error in validationStatus.errors" :key="error">
+                    {{ error }}
+                  </li>
+                </ul>
+              </div>
+              
+              <div v-if="validationStatus.warnings.length > 0" class="warnings">
+                <h4>Warnings:</h4>
+                <ul>
+                  <li v-for="warning in validationStatus.warnings" :key="warning">
+                    {{ warning }}
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
           
-          <div class="viewer-container">
-            <BpmnViewer 
-              :bpmn-xml="chatStore.currentBpmn || undefined"
-              @error="handleViewerError"
-              @loaded="handleViewerLoaded"
-            />
+          <div v-show="activeTab === 'analysis'" class="tab-content">
+            <div class="coming-soon">
+              <h3>Process Analysis</h3>
+              <p>Coming soon...</p>
+            </div>
           </div>
-
-          <!-- Validation Status -->
-          <div v-if="validationStatus" class="validation-status">
-            <div 
-              class="status-indicator"
-              :class="{ 
-                'valid': validationStatus.is_valid, 
-                'invalid': !validationStatus.is_valid 
-              }"
-            >
-              {{ validationStatus.is_valid ? 'Valid' : 'Invalid' }} BPMN
-            </div>
-            
-            <div v-if="validationStatus.errors.length > 0" class="errors">
-              <h4>Errors:</h4>
-              <ul>
-                <li v-for="error in validationStatus.errors" :key="error">
-                  {{ error }}
-                </li>
-              </ul>
-            </div>
-            
-            <div v-if="validationStatus.warnings.length > 0" class="warnings">
-              <h4>Warnings:</h4>
-              <ul>
-                <li v-for="warning in validationStatus.warnings" :key="warning">
-                  {{ warning }}
-                </li>
-              </ul>
+          
+          <div v-show="activeTab === 'prompts'" class="tab-content">
+            <div class="coming-soon">
+              <h3>Agent Prompts</h3>
+              <p>Coming soon...</p>
             </div>
           </div>
         </div>
@@ -82,6 +129,7 @@ import BpmnViewer from './components/BpmnViewer.vue'
 
 const chatStore = useChatStore()
 const validationStatus = ref<any>(null)
+const activeTab = ref('diagram')
 
 // Watch for BPMN changes and validate
 watch(
@@ -106,6 +154,30 @@ const handleViewerError = (error: string) => {
 
 const handleViewerLoaded = () => {
   console.log('BPMN diagram loaded successfully')
+}
+
+const copyXmlToClipboard = async () => {
+  if (!chatStore.currentBpmn) return
+
+  try {
+    await navigator.clipboard.writeText(chatStore.currentBpmn)
+    // You could add a toast notification here
+    console.log('XML copied to clipboard')
+  } catch (err) {
+    console.error('Failed to copy XML:', err)
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea')
+    textArea.value = chatStore.currentBpmn
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      console.log('XML copied to clipboard (fallback)')
+    } catch (fallbackErr) {
+      console.error('Fallback copy failed:', fallbackErr)
+    }
+    document.body.removeChild(textArea)
+  }
 }
 
 const downloadBpmn = () => {
@@ -183,6 +255,48 @@ const downloadBpmn = () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.viewer-tabs {
+  display: flex;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.tab-button {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-button.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+  background: white;
+}
+
+.tab-button:hover:not(.disabled) {
+  color: #007bff;
+  background: #f8f9fa;
+}
+
+.tab-button.disabled {
+  color: #adb5bd;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .viewer-header {
   padding: 16px 20px;
   background: #f8f9fa;
@@ -190,6 +304,12 @@ const downloadBpmn = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.viewer-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .viewer-header h2 {
@@ -216,6 +336,24 @@ const downloadBpmn = () => {
   letter-spacing: 0.5px;
 }
 
+.copy-btn {
+  background: #6f42c1;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copy-btn:hover {
+  background: #5a2d91;
+}
+
 .download-btn {
   background: #28a745;
   color: white;
@@ -229,6 +367,29 @@ const downloadBpmn = () => {
 
 .download-btn:hover {
   background: #218838;
+}
+
+.coming-soon {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  text-align: center;
+  padding: 40px;
+}
+
+.coming-soon h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 20px;
+}
+
+.coming-soon p {
+  margin: 0;
+  font-size: 16px;
+  color: #999;
 }
 
 .viewer-container {

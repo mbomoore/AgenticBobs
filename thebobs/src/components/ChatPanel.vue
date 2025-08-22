@@ -17,11 +17,10 @@
     </div>
 
     <div class="chat-messages" ref="messagesContainer">
-      <div 
+            <div 
         v-for="(message, index) in chatStore.messages" 
         :key="index"
-        class="message"
-        :class="message.role"
+        :class="['message', message.role]"
       >
         <div class="message-content">
           <p>{{ message.content }}</p>
@@ -29,21 +28,21 @@
             {{ formatTimestamp(message.timestamp) }}
           </small>
         </div>
-      </div>
-
-      <!-- Refinement Questions -->
-      <div v-if="chatStore.refinementQuestions.length > 0" class="refinement-questions">
-        <h4>Follow-up questions:</h4>
-        <ul>
-          <li 
-            v-for="(question, index) in chatStore.refinementQuestions" 
-            :key="index"
-            @click="selectQuestion(question)"
-            class="question-item"
-          >
-            {{ question }}
-          </li>
-        </ul>
+        
+        <!-- Refinement Questions for this specific message -->
+        <div v-if="message.questions && message.questions.length > 0" class="refinement-questions">
+          <h4>Follow-up questions:</h4>
+          <ul>
+            <li 
+              v-for="(question, qIndex) in message.questions" 
+              :key="qIndex"
+              @click="selectQuestion(question, index)"
+              class="question-item"
+            >
+              {{ question }}
+            </li>
+          </ul>
+        </div>
       </div>
 
       <!-- Loading indicator -->
@@ -105,12 +104,19 @@ const chatStore = useChatStore()
 const currentMessage = ref('')
 const messagesContainer = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
+const pendingQuestionClearIndex = ref<number | null>(null)
 
 const sendMessage = async () => {
   if (!currentMessage.value.trim() || chatStore.isLoading) return
 
   const message = currentMessage.value.trim()
   currentMessage.value = ''
+  
+  // Clear questions from the message that generated the selected question
+  if (pendingQuestionClearIndex.value !== null && chatStore.messages[pendingQuestionClearIndex.value]) {
+    chatStore.messages[pendingQuestionClearIndex.value].questions = []
+    pendingQuestionClearIndex.value = null
+  }
   
   try {
     await chatStore.sendMessage(message)
@@ -121,13 +127,19 @@ const sendMessage = async () => {
   }
 }
 
-const selectQuestion = (question: string) => {
+const selectQuestion = (question: string, messageIndex?: number) => {
   currentMessage.value = question
   textareaRef.value?.focus()
+  
+  // Store which message's questions should be cleared after sending
+  if (messageIndex !== undefined) {
+    pendingQuestionClearIndex.value = messageIndex
+  }
 }
 
 const clearChat = () => {
   chatStore.clearChat()
+  // Re-initialize the chat with the welcome message
   chatStore.initializeChat()
 }
 

@@ -32,6 +32,13 @@ dependencies = [
     "matplotlib>=3.10.5",
     "numpy>=2.3.2",
     "seaborn>=0.13.2",
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
+    "marvin>=3.1.5",
+    "python-multipart>=0.0.20",
+    "spiffworkflow>=3.1.1",
+    "networkx>=3.5",
+    "graphviz>=0.21",
 ]
 
 [project.optional-dependencies]

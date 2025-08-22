@@ -5,6 +5,7 @@ Provides API endpoints for chat, BPMN generation, and process validation.
 from __future__ import annotations
 
 import uuid
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Literal
 
@@ -20,6 +21,9 @@ from marvin_scripts.common import build_model
 from marvin_scripts.detect_type import bob_1
 from marvin_scripts.generate_xml import generate_process_xml, ProcessGenerationConfig
 from marvin_scripts.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
+from backend.bpmn_layout import add_layout_to_bpmn
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="The Bobs 2.0 API", version="1.0.0")
 
@@ -63,7 +67,7 @@ def get_or_create_session(session_id: Optional[str] = None) -> ChatSession:
         bpmn_xml=None,
         thread=marvin.Thread(),
         small_model=build_model(model_name="qwen3:8b"),
-        large_model=build_model(model_name="gpt-oss:20b")
+        large_model=build_model(model_name="qwen3:8b")
     )
     sessions[new_session_id] = new_session
     return new_session
@@ -139,11 +143,12 @@ async def chat(request: ChatRequest):
         
         # Determine if we need to detect process type first
         if session.process_type is None:
+            logger.info("🔍 First interaction - detecting process type")
             # First interaction - detect process type
             detected_type = bob_1(session.small_model, request.message)
             # Ensure the detected type is valid
             if detected_type in ["BPMN", "DMN", "CMMN", "ArchiMate"]:
-                session.process_type = detected_type
+                session.process_type = detected_type  # type: ignore
             else:
                 session.process_type = "BPMN"  # Default fallback
             
@@ -154,7 +159,20 @@ async def chat(request: ChatRequest):
                 model_instance=session.large_model
             )
             bpmn_result = generate_process_xml(pgen_config)
-            session.bpmn_xml = bpmn_result.xml
+            
+            # Debug: Log what Bob_2 generated
+            logger.info(f"🤖 Bob_2 generated XML (length: {len(bpmn_result.xml) if bpmn_result.xml else 0})")
+            if bpmn_result.xml:
+                logger.info(f"🤖 XML preview: {bpmn_result.xml[:200]}...")
+            else:
+                logger.error("❌ Bob_2 returned no XML!")
+            
+            # Add layout to BPMN XML if it's BPMN type
+            if session.process_type == "BPMN" and bpmn_result.xml:
+                session.bpmn_xml = add_layout_to_bpmn(bpmn_result.xml, layout_algorithm='dot')
+                logger.info("Added hierarchical layout to BPMN diagram")
+            else:
+                session.bpmn_xml = bpmn_result.xml
             
             # Generate response message
             response_message = f"I've detected that you want to create a {session.process_type} process. I've generated an initial process diagram based on your description."
@@ -166,9 +184,25 @@ async def chat(request: ChatRequest):
                 process_type=session.process_type,  # type: ignore
                 model_instance=session.small_model
             )
-            questions = generate_refinement_questions(questions_config)
+            raw_questions = generate_refinement_questions(questions_config)
+            
+            # Ensure questions are clean strings
+            questions = []
+            for q in raw_questions:
+                if isinstance(q, str):
+                    # Clean up the question text
+                    clean_q = q.strip().lstrip("123456789. -•").strip()
+                    if clean_q and not clean_q.startswith("{") and not clean_q.startswith("["):
+                        questions.append(clean_q)
+                else:
+                    # Convert non-string to string and clean
+                    clean_q = str(q).strip().lstrip("123456789. -•").strip()
+                    if clean_q and not clean_q.startswith("{") and not clean_q.startswith("["):
+                        questions.append(clean_q)
+            logger.info(f"✅ Generated {len(questions)} refinement questions for initial request")
             
         else:
+            logger.info("🔄 Follow-up interaction - refining existing process")
             # Follow-up interaction - refine existing process
             # Use the conversation history to refine the process
             conversation_context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in session.messages[-5:]])
@@ -179,10 +213,45 @@ async def chat(request: ChatRequest):
                 model_instance=session.large_model
             )
             bpmn_result = generate_process_xml(pgen_config)
-            session.bpmn_xml = bpmn_result.xml
+            
+            # Debug: Log what Bob_2 generated for follow-up
+            logger.info(f"🤖 Bob_2 follow-up XML (length: {len(bpmn_result.xml) if bpmn_result.xml else 0})")
+            if bpmn_result.xml:
+                logger.info(f"🤖 Follow-up XML preview: {bpmn_result.xml[:200]}...")
+            else:
+                logger.error("❌ Bob_2 returned no XML for follow-up!")
+            
+            # Add layout to BPMN XML if it's BPMN type
+            if session.process_type == "BPMN" and bpmn_result.xml:
+                session.bpmn_xml = add_layout_to_bpmn(bpmn_result.xml, layout_algorithm='dot')
+                logger.info("Added hierarchical layout to updated BPMN diagram")
+            else:
+                session.bpmn_xml = bpmn_result.xml
             
             response_message = "I've updated the process based on your feedback."
+            
+            # Generate refinement questions for follow-up interactions too
+            questions_config = RefinementQuestionsConfig(
+                original_description_or_answer=request.message,
+                generated_xml=session.bpmn_xml,
+                process_type=session.process_type,  # type: ignore
+                model_instance=session.small_model
+            )
+            raw_questions = generate_refinement_questions(questions_config)
+            
+            # Clean up questions
             questions = []
+            for q in raw_questions:
+                if isinstance(q, str):
+                    clean_q = q.strip().lstrip("123456789. -•").strip()
+                    if clean_q and not clean_q.startswith("{") and not clean_q.startswith("["):
+                        questions.append(clean_q)
+                else:
+                    clean_q = str(q).strip().lstrip("123456789. -•").strip()
+                    if clean_q and not clean_q.startswith("{") and not clean_q.startswith("["):
+                        questions.append(clean_q)
+            
+            logger.info(f"✅ Generated {len(questions)} refinement questions for follow-up request")
         
         # Add assistant response to session
         session.messages.append({"role": "assistant", "content": response_message})
