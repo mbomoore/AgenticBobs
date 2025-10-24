@@ -1,5 +1,5 @@
 import pytest
-from sim_dsl.core import State, Transition, ProcessModel, ModelValidationError
+from agentic_process_automation.core.sim.core import State, Transition, ProcessModel, ModelValidationError
 
 
 def test_state_transition_dsl_basic():

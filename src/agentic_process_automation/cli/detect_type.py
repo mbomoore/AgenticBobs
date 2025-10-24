@@ -15,7 +15,7 @@ try:
 except ImportError:
     MARVIN_AVAILABLE = False
 
-from .common import build_model
+from ..core.common import build_model
 
 
 

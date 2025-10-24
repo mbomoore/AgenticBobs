@@ -4,7 +4,7 @@ from typing import Dict, Any, List
 
 import pytest
 
-from sim_dsl.steady_state import (
+from agentic_process_automation.core.sim.steady_state import (
     detect_warmup_index,
     is_stationary,
     steady_state_report_from_result,

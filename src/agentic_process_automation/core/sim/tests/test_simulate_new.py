@@ -4,9 +4,9 @@ from typing import Optional, Any
 import numpy as np
 import pytest
 
-from sim_dsl.core import ProcessModel, State
-from sim_dsl import simulate, Metric
-from sim_dsl.simpy_adapter import SimulationParameters, SimulationSettings
+from agentic_process_automation.core.sim.core import ProcessModel, State
+from agentic_process_automation.core.sim import simulate, Metric
+from agentic_process_automation.core.sim.simpy_adapter import SimulationParameters, SimulationSettings
 
 
 def build_simple_model():

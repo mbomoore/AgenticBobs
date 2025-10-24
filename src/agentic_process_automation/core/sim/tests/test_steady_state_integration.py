@@ -1,8 +1,8 @@
 import math
 
-from sim_dsl import ProcessModel, State, Resource, simulate
-from sim_dsl.simpy_adapter import SimulationParameters, SimulationSettings
-from sim_dsl.steady_state import steady_state_report_from_result
+from agentic_process_automation.core.sim import ProcessModel, State, Resource, simulate
+from agentic_process_automation.core.sim.simpy_adapter import SimulationParameters, SimulationSettings
+from agentic_process_automation.core.sim.steady_state import steady_state_report_from_result
 
 
 def build_plateau_model():

@@ -27,7 +27,7 @@ export const useChatStore = defineStore('chat', () => {
   const error = ref<string | null>(null)
 
   // API base URL
-  const API_BASE = 'http://localhost:8000/api'
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
   // Computed
   const hasActiveBpmn = computed(() => !!currentBpmn.value)
