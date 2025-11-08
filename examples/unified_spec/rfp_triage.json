@@ -1,0 +1,69 @@
+{
+  "name": "RFP Triage",
+  "case_schema": {
+    "rfps": {
+      "id": "int",
+      "title": "str",
+      "status": "str",
+      "summary": "str",
+      "score": "float"
+    }
+  },
+  "views": [
+    {
+      "name": "new_rfps",
+      "query": "SELECT * FROM rfps WHERE status = 'new'"
+    },
+    {
+      "name": "scored_rfps",
+      "query": "SELECT * FROM rfps WHERE status = 'scored'"
+    }
+  ],
+  "work_units": [
+    {
+      "name": "summarize_rfp",
+      "goal_tag": "summarize",
+      "inputs": ["new_rfps"],
+      "outputs": ["rfps.summary"],
+      "done_condition": "rfps.summary IS NOT NULL",
+      "quality_condition": "LEN(rfps.summary) > 50"
+    },
+    {
+      "name": "score_rfp",
+      "goal_tag": "score",
+      "inputs": ["rfps.summary"],
+      "outputs": ["rfps.score"],
+      "done_condition": "rfps.score IS NOT NULL",
+      "quality_condition": "rfps.score >= 0 AND rfps.score <= 1"
+    }
+  ],
+  "combinators": [
+    {
+      "type": "map",
+      "work_unit": "summarize_rfp",
+      "over": "new_rfps"
+    },
+    {
+      "type": "map",
+      "work_unit": "score_rfp",
+      "over": "new_rfps"
+    }
+  ],
+  "execution_bindings": [
+    {
+      "goal_tag": "summarize",
+      "executor": "ai_agent",
+      "condition": null
+    },
+    {
+      "goal_tag": "score",
+      "executor": "human",
+      "condition": "rfps.value > 100000"
+    },
+    {
+      "goal_tag": "score",
+      "executor": "ai_agent",
+      "condition": "rfps.value <= 100000"
+    }
+  ]
+}
