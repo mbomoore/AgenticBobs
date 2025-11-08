@@ -6,39 +6,40 @@ This document outlines the high-level tasks required to implement the unified sp
 
 This phase focuses on defining the vocabulary and structure of the new specification.
 
-- [ ] **Task 1.1: Define Core Pydantic Models:**
-    - [ ] `Case`: The relational container for work state.
-    - [ ] `View`: The functional lens into the Case.
-    - [ ] `WorkUnit`: The executor-agnostic unit of work.
-    - [ ] `Combinator`: Functional operators like `map` and `fold`.
-    - [ ] `ExecutionBinding`: The policy linking a WorkUnit to an implementation.
-    - [ ] `WorkGraph`: The top-level container for a complete process specification.
+- [x] **Task 1.1: Define Core Pydantic Models:**
+    - [x] `Case`: The relational container for work state.
+    - [x] `View`: The functional lens into the Case.
+    - [x] `WorkUnit`: The executor-agnostic unit of work.
+    - [x] `Combinator`: Functional operators like `map` and `fold`.
+    - [x] `ExecutionBinding`: The policy linking a WorkUnit to an implementation.
+    - [x] `WorkGraph`: The top-level container for a complete process specification.
+    - [x] `WorkItem`: A specific, parameterized instance of a `WorkUnit`.
 
 - [ ] **Task 1.2: Define Serialization Format:**
     - [ ] Decide on a primary serialization format (YAML or JSON).
     - [ ] Develop a JSON Schema from the Pydantic models for validation.
 
-- [ ] **Task 1.3: Create Example Specifications:**
-    - [ ] Write a complete `WorkGraph` spec in the chosen format for the "RFP Triage" example from the project brief.
+- [x] **Task 1.3: Create Example Specifications:**
+    - [x] Write a complete `WorkGraph` spec in the chosen format for the "RFP Triage" example from the project brief.
     - [ ] Create a second, more complex example to test the expressiveness of the language.
 
 ## Phase 2: The Interpreter & Runtime
 
 This phase focuses on building the engine that executes a `WorkGraph` specification.
 
-- [ ] **Task 2.1: Implement the `Case` State Manager:**
-    - [ ] Create a class to load, manage, and persist the state of a `Case` instance. For now, this will be an in-memory Pydantic object graph.
+- [x] **Task 2.1: Implement the `Case` State Manager:**
+    - [x] Create a class to load, manage, and persist the state of a `Case` instance. For now, this will be an in-memory Pydantic object graph.
 
-- [ ] **Task 2.2: Develop the `View` Evaluation Engine:**
-    - [ ] Implement logic to resolve a `View` definition against a `Case` instance.
-    - [ ] Start with simple object path queries and filters.
+- [x] **Task 2.2: Develop the `View` Evaluation Engine:**
+    - [x] Implement logic to resolve a `View` definition against a `Case` instance.
+    - [x] Support for parameterized queries, `IN` clauses, and column aliases.
 
-- [ ] **Task 2.3: Build the Core Interpreter Loop:**
-    - [ ] Create a class that takes a `WorkGraph` and a `Case` as input.
-    - [ ] Implement the core logic:
-        - [ ] Evaluate `Done Conditions` for all active `Work Units`.
-        - [ ] Identify and schedule the next set of available `Work Units`.
-        - [ ] Implement logic for `Combinators` (starting with `map`).
+- [x] **Task 2.3: Build the Core Interpreter Loop:**
+    - [x] Create a class that takes a `WorkGraph` and a `Case` as input.
+    - [x] Implement the core logic:
+        - [x] Evaluate `Done Conditions` for all active `Work Units`.
+        - [x] Identify and schedule the next set of available `Work Units` as `WorkItem`s.
+        - [x] Implement logic for `Combinators` (starting with `map`).
 
 ## Phase 3: Executors & Bindings
 

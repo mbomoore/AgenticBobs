@@ -66,13 +66,25 @@ def test_evaluate_view_no_results(initial_case: Case):
     assert len(result) == 0
 
 
-def test_evaluate_view_nonexistent_entity(initial_case: Case):
-    """Tests that querying a non-existent entity raises an error."""
+def test_evaluate_view_nonexistent_entity_returns_empty(initial_case: Case):
+    """Tests that querying a non-existent entity returns an empty list."""
     view = View(name="clients_view", query="SELECT * FROM clients")
     engine = ViewEvaluationEngine(initial_case)
+    result = engine.evaluate_view(view)
+    assert result == []
 
-    with pytest.raises(ValueError, match="Entity 'clients' not found in case data."):
-        engine.evaluate_view(view)
+
+def test_evaluate_view_with_in_clause(initial_case: Case):
+    """Tests a 'SELECT' query with a 'WHERE ... IN' clause."""
+    view = View(name="specific_rfps", query="SELECT * FROM rfps WHERE id IN [1, 3]")
+    engine = ViewEvaluationEngine(initial_case)
+
+    result = engine.evaluate_view(view)
+
+    assert len(result) == 2
+    assert result[0]["id"] == 1
+    assert result[1]["id"] == 3
+
 
 def test_evaluate_view_malformed_query(initial_case: Case):
     """Tests that a malformed query raises an error."""
