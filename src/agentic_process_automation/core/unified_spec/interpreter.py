@@ -28,32 +28,44 @@ class Interpreter:
         :return: A list of WorkItems that are ready to be executed.
         """
         ready_work_items = []
+        combinator_work_units = set()
 
         for combinator in self.work_graph.combinators:
+            combinator_work_units.add(combinator.work_unit)
             if combinator.type == "map":
                 work_unit_template = self.work_unit_map.get(combinator.work_unit)
                 if not work_unit_template:
                     continue
 
-                # The 'over' query now uses an alias to provide the correct parameter name, e.g.,
-                # "SELECT id AS rfp_id FROM RFPs WHERE status = 'new'"
                 over_view = View(name="combinator_over", query=combinator.over)
                 items_to_process = self.view_engine.evaluate_view(over_view)
 
                 for params in items_to_process:
-                    # 'params' is now a dictionary like {'rfp_id': 'rfp-001'}
                     done_condition_view = View(name="done_condition_check", query=work_unit_template.done_condition)
-
-                    # Evaluate the done_condition with the specific parameters for this item.
                     done_results = self.view_engine.evaluate_view(done_condition_view, params=params)
 
                     if not done_results:
-                        # This instance is not done, so create a specific WorkItem for it.
                         ready_work_items.append(
                             WorkItem(
                                 work_unit_name=work_unit_template.name,
                                 parameters=params,
                             )
                         )
+
+        # Handle standalone work units
+        for work_unit in self.work_graph.work_units:
+            if work_unit.name in combinator_work_units:
+                continue
+
+            done_condition_view = View(name="done_condition_check", query=work_unit.done_condition)
+            done_results = self.view_engine.evaluate_view(done_condition_view)
+
+            if not done_results:
+                ready_work_items.append(
+                    WorkItem(
+                        work_unit_name=work_unit.name,
+                        parameters={}, # Standalone work units have no parameters for now
+                    )
+                )
 
         return ready_work_items

@@ -1,107 +1,98 @@
 {
   "name": "Customer Support Process",
   "case_schema": {
-    "tickets": {
-      "id": "integer",
-      "subject": "string",
-      "body": "string",
-      "status": "string",
-      "category": "string",
-      "agent_id": "integer",
-      "resolution_email_sent": "boolean"
-    },
-    "agents": {
-      "id": "integer",
-      "name": "string",
-      "expertise": "string"
-    },
-    "emails": {
-      "id": "integer",
-      "ticket_id": "integer",
-      "recipient": "string",
-      "body": "string"
+    "type": "object",
+    "properties": {
+      "ticket": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "customer_email": { "type": "string" },
+          "description": { "type": "string" },
+          "status": { "type": "string", "enum": ["new", "triaged", "in_progress", "resolved", "closed"], "default": "new" },
+          "priority": { "type": "string", "enum": ["low", "medium", "high"], "default": "medium" },
+          "category": { "type": "string", "enum": ["billing", "technical", "general"], "default": "general" }
+        },
+        "required": ["id", "customer_email", "description"]
+      },
+      "audit_trail": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "timestamp": { "type": "string", "format": "date-time" },
+            "message": { "type": "string" }
+          }
+        }
+      }
     }
   },
-  "views": [
-    {
-      "name": "new_tickets",
-      "query": "SELECT * FROM tickets WHERE status = 'new'"
-    },
-    {
-      "name": "uncategorized_tickets",
-      "query": "SELECT id, subject, body FROM tickets WHERE category IS NULL AND status = 'new'"
-    },
-    {
-      "name": "billing_tickets_to_assign",
-      "query": "SELECT id FROM tickets WHERE category = 'billing' AND agent_id IS NULL"
-    },
-    {
-      "name": "technical_tickets_to_assign",
-      "query": "SELECT id FROM tickets WHERE category = 'technical' AND agent_id IS NULL"
-    },
-    {
-      "name": "unresolved_tickets",
-      "query": "SELECT * FROM tickets WHERE status = 'assigned'"
-    },
-    {
-      "name": "resolved_tickets_for_email",
-      "query": "SELECT id, subject FROM tickets WHERE status = 'resolved' AND resolution_email_sent = false"
-    }
-  ],
   "work_units": [
     {
-      "name": "categorize_ticket",
-      "goal_tag": "ai_categorize",
-      "inputs": ["uncategorized_tickets"],
-      "outputs": ["tickets"],
-      "done_condition": "(SELECT COUNT(*) FROM tickets WHERE category IS NULL AND status = 'new') == 0"
+      "name": "Triage Ticket",
+      "description": "Categorize and prioritize the incoming support ticket.",
+      "goal_tag": "ticket_triage",
+      "input_views": [
+        { "name": "ticket_details", "query": "SELECT ticket.id, ticket.description FROM ticket" }
+      ],
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+          "category": { "type": "string", "enum": ["billing", "technical", "general"] }
+        }
+      },
+      "done_condition": "ticket.status != 'new'"
     },
     {
-      "name": "assign_billing_ticket",
-      "goal_tag": "ai_assign",
-      "inputs": ["billing_tickets_to_assign"],
-      "outputs": ["tickets"],
-      "done_condition": "(SELECT COUNT(*) FROM tickets WHERE category = 'billing' AND agent_id IS NULL) == 0"
+      "name": "Generate Standard Response",
+      "description": "For low-priority issues, generate a standard response using a template.",
+      "goal_tag": "standard_response",
+      "input_views": [
+        { "name": "ticket_info", "query": "SELECT ticket.id, ticket.customer_email, ticket.description FROM ticket" }
+      ],
+      "done_condition": "ticket.priority == 'low' AND ticket.status == 'resolved'"
     },
     {
-      "name": "assign_technical_ticket",
-      "goal_tag": "ai_assign",
-      "inputs": ["technical_tickets_to_assign"],
-      "outputs": ["tickets"],
-      "done_condition": "(SELECT COUNT(*) FROM tickets WHERE category = 'technical' AND agent_id IS NULL) == 0"
+      "name": "Route to Specialist",
+      "description": "For high-priority or complex issues, route to a human specialist.",
+      "goal_tag": "specialist_routing",
+      "input_views": [
+        { "name": "ticket_info", "query": "SELECT ticket.id, ticket.description, ticket.priority, ticket.category FROM ticket" }
+      ],
+      "done_condition": "ticket.priority IN ('medium', 'high') AND ticket.status == 'in_progress'"
     },
     {
-      "name": "resolve_ticket_by_human",
-      "goal_tag": "human_resolve",
-      "inputs": ["unresolved_tickets"],
-      "outputs": ["tickets"],
-      "done_condition": "False"
-    },
-    {
-      "name": "send_resolution_email",
-      "goal_tag": "system_email",
-      "inputs": ["resolved_tickets_for_email"],
-      "outputs": ["emails", "tickets"],
-      "done_condition": "(SELECT COUNT(*) FROM tickets WHERE status = 'resolved' AND resolution_email_sent = false) == 0"
+      "name": "Close Ticket",
+      "description": "Close the ticket and notify the customer.",
+      "goal_tag": "ticket_close",
+      "input_views": [
+        { "name": "ticket_id", "query": "SELECT ticket.id, ticket.customer_email FROM ticket" }
+      ],
+      "done_condition": "ticket.status == 'resolved'"
     }
   ],
-  "combinators": [],
   "execution_bindings": [
     {
-      "goal_tag": "ai_categorize",
-      "executor": "ai_agent"
+      "goal_tag": "ticket_triage",
+      "executor": "ai_agent",
+      "condition": "True"
     },
     {
-      "goal_tag": "ai_assign",
-      "executor": "ai_agent"
+      "goal_tag": "standard_response",
+      "executor": "ai_agent",
+      "condition": "True"
     },
     {
-      "goal_tag": "human_resolve",
-      "executor": "human"
+      "goal_tag": "specialist_routing",
+      "executor": "human",
+      "condition": "True"
     },
     {
-      "goal_tag": "system_email",
-      "executor": "system"
+      "goal_tag": "ticket_close",
+      "executor": "system",
+      "condition": "True"
     }
-  ]
+  ],
+  "combinators": []
 }
