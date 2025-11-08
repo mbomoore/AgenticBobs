@@ -1,10 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Dict, List
+from typing import Dict, List, Any
 import uuid
 
 from agentic_process_automation.core.unified_spec.models import WorkGraph, Case
 from agentic_process_automation.core.unified_spec.interpreter import Interpreter
+from agentic_process_automation.core.unified_spec.dispatcher import Dispatcher
+from agentic_process_automation.core.unified_spec.executors import get_executor
 
 app = FastAPI()
 
@@ -39,12 +41,25 @@ async def create_case(workgraph_name: str):
         raise HTTPException(status_code=404, detail=f"WorkGraph '{workgraph_name}' not found.")
 
     case_id = str(uuid.uuid4())
-    case = Case(schema_=workgraph.case_schema, data={})
+    # Initialize with empty data structure based on schema
+    initial_data = {entity: [] for entity in workgraph.case_schema.get("properties", {}).keys()}
+    case = Case(schema_=workgraph.case_schema, data=initial_data)
     cases[case_id] = case
     interpreters[case_id] = Interpreter(workgraph, case)
     human_tasks[case_id] = []
 
     return {"case_id": case_id}
+
+
+@app.post("/case/{case_id}/data")
+async def set_case_data(case_id: str, data: Dict[str, List[Dict[str, Any]]]):
+    """Sets the data for a specific case."""
+    case = cases.get(case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+
+    case.data = data
+    return {"message": f"Data for case '{case_id}' updated successfully."}
 
 
 @app.post("/case/{case_id}/tick")
@@ -54,16 +69,32 @@ async def tick_case(case_id: str):
     if not interpreter:
         raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
 
-    # In a real implementation, we would dispatch and execute work items.
-    # For now, we'll just advance the interpreter and log dummy tasks.
     work_items = interpreter.tick()
 
-    # This is a simplified stand-in for the dispatcher and executor logic
-    for item in work_items:
-        if "human" in item.work_unit_name: # A simple heuristic for now
-            human_tasks[case_id].append(item.model_dump())
+    if not work_items:
+        return {"message": f"Case '{case_id}' ticked. No new work items."}
 
-    return {"message": f"Case '{case_id}' ticked. {len(work_items)} new work items.", "work_items": work_items}
+    dispatcher = Dispatcher(interpreter.work_graph)
+
+    for item in work_items:
+        try:
+            executor_name = dispatcher.resolve_executor(item, interpreter.case)
+
+            # Inject dependencies for executors
+            executor_kwargs = {}
+            if executor_name == "human":
+                executor_kwargs["task_list"] = human_tasks[case_id]
+
+            executor = get_executor(executor_name, **executor_kwargs)
+            executor.execute(item)
+
+        except Exception as e:
+            # In a real system, you'd have more robust error handling
+            # and possibly a dead-letter queue for failed work items.
+            print(f"Error executing work item {item.work_unit_name}: {e}")
+
+
+    return {"message": f"Case '{case_id}' ticked. {len(work_items)} new work items processed.", "work_items": [i.model_dump() for i in work_items]}
 
 
 @app.get("/case/{case_id}")

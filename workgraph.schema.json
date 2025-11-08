@@ -1,0 +1,190 @@
+{
+  "$defs": {
+    "Combinator": {
+      "description": "Uses functional patterns over sets of Work Units.",
+      "properties": {
+        "type": {
+          "description": "The type of combinator (e.g., 'map', 'fold', 'filter').",
+          "title": "Type",
+          "type": "string"
+        },
+        "work_unit": {
+          "description": "The name of the WorkUnit to apply.",
+          "title": "Work Unit",
+          "type": "string"
+        },
+        "over": {
+          "description": "The query or View name defining the set of items to operate on.",
+          "title": "Over",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "work_unit",
+        "over"
+      ],
+      "title": "Combinator",
+      "type": "object"
+    },
+    "ExecutionBinding": {
+      "description": "Attaches an implementation policy to a Work Unit or goal tag.",
+      "properties": {
+        "goal_tag": {
+          "description": "The goal_tag this binding applies to.",
+          "title": "Goal Tag",
+          "type": "string"
+        },
+        "executor": {
+          "description": "The name of the executor to use (e.g., 'human', 'ai_agent', 'swarm').",
+          "title": "Executor",
+          "type": "string"
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An optional condition on the Case for this binding to be active.",
+          "title": "Condition"
+        }
+      },
+      "required": [
+        "goal_tag",
+        "executor"
+      ],
+      "title": "ExecutionBinding",
+      "type": "object"
+    },
+    "View": {
+      "description": "A functionally-inspired 'slice' or 'lens' of the world from the Case.\nIt defines what context a WorkUnit can read and what parts it is allowed to write.",
+      "properties": {
+        "name": {
+          "description": "A unique name for the view.",
+          "title": "Name",
+          "type": "string"
+        },
+        "query": {
+          "description": "The query to select a slice of data from the Case. (e.g., 'SELECT * FROM RFPs WHERE status = \"new\"').",
+          "title": "Query",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "query"
+      ],
+      "title": "View",
+      "type": "object"
+    },
+    "WorkUnit": {
+      "description": "Describes one logical, executor-agnostic step of knowledge work.",
+      "properties": {
+        "name": {
+          "description": "A unique name for the work unit.",
+          "title": "Name",
+          "type": "string"
+        },
+        "goal_tag": {
+          "description": "A semantic label for the work, e.g., 'evaluate_rfp'.",
+          "title": "Goal Tag",
+          "type": "string"
+        },
+        "inputs": {
+          "description": "A list of View names that this work unit reads from.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "outputs": {
+          "description": "A list of View names that this work unit writes to.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Outputs",
+          "type": "array"
+        },
+        "done_condition": {
+          "description": "A predicate over the Case that must be true for this work unit to be considered complete.",
+          "title": "Done Condition",
+          "type": "string"
+        },
+        "quality_condition": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An optional predicate over the Case that defines a quality bar for the work.",
+          "title": "Quality Condition"
+        }
+      },
+      "required": [
+        "name",
+        "goal_tag",
+        "done_condition"
+      ],
+      "title": "WorkUnit",
+      "type": "object"
+    }
+  },
+  "description": "The complete, self-contained specification for a unit of knowledge work.",
+  "properties": {
+    "name": {
+      "description": "The name of the work graph.",
+      "title": "Name",
+      "type": "string"
+    },
+    "case_schema": {
+      "additionalProperties": true,
+      "description": "The schema for the Case.",
+      "title": "Case Schema",
+      "type": "object"
+    },
+    "views": {
+      "items": {
+        "$ref": "#/$defs/View"
+      },
+      "title": "Views",
+      "type": "array"
+    },
+    "work_units": {
+      "items": {
+        "$ref": "#/$defs/WorkUnit"
+      },
+      "title": "Work Units",
+      "type": "array"
+    },
+    "combinators": {
+      "items": {
+        "$ref": "#/$defs/Combinator"
+      },
+      "title": "Combinators",
+      "type": "array"
+    },
+    "execution_bindings": {
+      "items": {
+        "$ref": "#/$defs/ExecutionBinding"
+      },
+      "title": "Execution Bindings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "case_schema"
+  ],
+  "title": "WorkGraph",
+  "type": "object"
+}
