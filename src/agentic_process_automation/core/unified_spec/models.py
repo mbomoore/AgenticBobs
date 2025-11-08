@@ -81,3 +81,11 @@ class WorkGraph(BaseModel):
     work_units: List[WorkUnit] = Field(default_factory=list)
     combinators: List[Combinator] = Field(default_factory=list)
     execution_bindings: List[ExecutionBinding] = Field(default_factory=list)
+
+
+class WorkItem(BaseModel):
+    """
+    Represents a specific, parameterized instance of a WorkUnit that is ready for execution.
+    """
+    work_unit_name: str = Field(..., description="The name of the WorkUnit template.")
+    parameters: Dict[str, Any] = Field(..., description="The specific parameters for this instance of the work.")

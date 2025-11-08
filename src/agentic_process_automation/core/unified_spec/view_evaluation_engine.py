@@ -1,7 +1,7 @@
-from typing import Any, Dict, List
 import re
+import ast
+from typing import Any, Dict, List, Optional, Tuple
 from agentic_process_automation.core.unified_spec.models import Case, View
-
 
 class ViewEvaluationEngine:
     """Evaluates a View definition against a Case to produce a data slice."""
@@ -10,39 +10,106 @@ class ViewEvaluationEngine:
         """Initializes the engine with a Case instance."""
         self.case = case
 
-    def evaluate_view(self, view: View) -> List[Dict[str, Any]]:
+    def evaluate_view(self, view: View, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Evaluates the query in the View against the Case data.
-
-        :param view: The View to evaluate.
-        :return: A list of dictionaries representing the result.
-        :raises ValueError: If the query is malformed or the entity does not exist.
+        Handles parameter substitution and simple WHERE clauses.
         """
-        try:
-            # Basic regex to parse "SELECT * FROM entity WHERE key = 'value'"
-            match = re.match(r"SELECT\s+\*\s+FROM\s+(\w+)(?:\s+WHERE\s+(\w+)\s*=\s*'([^']*)')?", view.query)
-            if not match:
-                raise ValueError("Query parsing error: Only 'SELECT * FROM entity [WHERE key = 'value']' is supported.")
+        query = view.query
+        if params:
+            for key, value in params.items():
+                if isinstance(value, str):
+                    query = query.replace(f":{key}", f"'{value}'")
+                else:
+                    query = query.replace(f":{key}", str(value))
 
-            entity_name = match.group(1)
+        try:
+            select_part, where_part = self._parse_select_where(query)
+            entity_name, columns = self._parse_select_part(select_part)
 
             if entity_name not in self.case.data:
-                raise ValueError(f"Entity '{entity_name}' not found in case data.")
+                return []
 
             source_data = self.case.data[entity_name]
-
-            # Handle WHERE clause if present
-            if match.group(2) and match.group(3):
-                key_to_filter = match.group(2)
-                value_to_filter = match.group(3)
-
-                return [
-                    item for item in source_data
-                    if item.get(key_to_filter) == value_to_filter
-                ]
-            else:
-                return list(source_data)
+            filtered_data = self._apply_where_clause(source_data, where_part)
+            return self._project_columns(filtered_data, columns)
 
         except Exception as e:
-            # Re-raise internal errors as a consistent error type for the caller
             raise ValueError(f"Query parsing error: {e}")
+
+    def _parse_select_where(self, query: str) -> Tuple[str, Optional[str]]:
+        """Splits a query into its SELECT...FROM and WHERE parts."""
+        if " WHERE " in query.upper():
+            parts = re.split(r'\s+WHERE\s+', query, flags=re.IGNORECASE, maxsplit=1)
+            return parts[0], parts[1]
+        return query, None
+
+    def _parse_select_part(self, select_part: str) -> Tuple[str, Optional[List[Tuple[str, str]]]]:
+        """Parses the 'SELECT columns FROM entity' part of a query, handling aliases."""
+        match = re.match(r"SELECT\s+(.+)\s+FROM\s+(\w+)", select_part.strip(), re.IGNORECASE)
+        if not match:
+            raise ValueError(f"Invalid SELECT...FROM format: '{select_part}'")
+
+        columns_str = match.group(1).strip()
+        entity_name = match.group(2).strip()
+
+        if columns_str == "*":
+            return entity_name, None
+
+        columns = []
+        for col_str in columns_str.split(','):
+            col_str = col_str.strip()
+            alias_parts = re.split(r'\s+AS\s+', col_str, flags=re.IGNORECASE, maxsplit=1)
+            if len(alias_parts) == 2:
+                columns.append((alias_parts[0].strip(), alias_parts[1].strip()))
+            else:
+                columns.append((col_str, col_str))
+        return entity_name, columns
+
+    def _apply_where_clause(self, data: List[Dict[str, Any]], where_part: Optional[str]) -> List[Dict[str, Any]]:
+        """Filters data based on the WHERE clause."""
+        if not where_part:
+            return data
+
+        clauses = re.split(r'\s+AND\s+', where_part, flags=re.IGNORECASE)
+
+        filtered_data = list(data)
+        for clause in clauses:
+            filtered_data = self._apply_single_clause(filtered_data, clause.strip())
+
+        return filtered_data
+
+    def _apply_single_clause(self, data: List[Dict[str, Any]], clause: str) -> List[Dict[str, Any]]:
+        """Applies a single filter condition from a WHERE clause."""
+        equal_match = re.match(r"(\w+)\s*=\s*'([^']*)'", clause)
+        if equal_match:
+            key, value = equal_match.groups()
+            return [item for item in data if str(item.get(key)) == value]
+
+        in_match = re.match(r"(\w+)\s+IN\s+(\[.*\])", clause, re.IGNORECASE)
+        if in_match:
+            key, values_str = in_match.groups()
+            try:
+                values = ast.literal_eval(values_str)
+                if not isinstance(values, list):
+                    raise ValueError("IN clause requires a list.")
+                return [item for item in data if item.get(key) in values]
+            except (ValueError, SyntaxError) as e:
+                raise ValueError(f"Malformed IN clause values: {values_str}. Error: {e}")
+
+        raise ValueError(f"Unsupported WHERE clause format: {clause}")
+
+    def _project_columns(self, data: List[Dict[str, Any]], columns: Optional[List[Tuple[str, str]]]) -> List[Dict[str, Any]]:
+        """Selects specific columns from the data, handling aliases."""
+        if not columns:
+            return data
+
+        projected_data = []
+        for item in data:
+            new_item = {}
+            for original_name, alias in columns:
+                if original_name in item:
+                    new_item[alias] = item.get(original_name)
+            projected_data.append(new_item)
+
+        return projected_data
