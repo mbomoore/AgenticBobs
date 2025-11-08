@@ -8,12 +8,16 @@ import os
 pytestmark = pytest.mark.agent
 
 
+from agentic_process_automation.config import get_ai_config
+
 def _configure_marvin_for_ollama():
     """Configure Marvin to work with local Ollama server."""
+    ai_config = get_ai_config()
     # Set up environment variables for Ollama compatibility
     os.environ.setdefault("OPENAI_API_KEY", "dummy-key")  # Ollama doesn't need real key
-    os.environ.setdefault("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    os.environ.setdefault("OPENAI_BASE_URL", ai_config.ollama_api_url)
 
+@pytest.mark.skip(reason="Skipping test that requires a running Ollama server.")
 def test_marvin_agent():
     
     _configure_marvin_for_ollama()
@@ -30,6 +34,7 @@ def test_marvin_agent():
     
     
     
+@pytest.mark.skip(reason="Skipping test that requires a running Ollama server.")
 def test_bpmn_writer():
 
     _configure_marvin_for_ollama()

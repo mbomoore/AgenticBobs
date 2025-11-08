@@ -1,5 +1,5 @@
-from sim_dsl.core import State, ProcessModel
-from sim_dsl.simpy_adapter import simulate_markov_chain
+from agentic_process_automation.core.sim.core import State, ProcessModel
+from agentic_process_automation.core.sim.simpy_adapter import simulate_markov_chain
 
 
 def test_simulate_markov_chain():

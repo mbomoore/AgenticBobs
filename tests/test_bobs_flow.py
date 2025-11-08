@@ -12,12 +12,14 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
-from src.agentic_process_automation.cli.detect_type import bob_1
-from src.agentic_process_automation.cli.generate_xml import generate_process_xml, ProcessGenerationConfig
-from src.agentic_process_automation.cli.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
-from src.agentic_process_automation.cli.common import build_model
+from agentic_process_automation.cli.detect_type import bob_1
+from agentic_process_automation.cli.generate_xml import generate_process_xml, ProcessGenerationConfig
+import pytest
+from agentic_process_automation.cli.generate_refinement_questions import generate_refinement_questions, RefinementQuestionsConfig
+from agentic_process_automation.core.common import build_model
 
 
+@pytest.mark.skip(reason="Skipping test that requires a running Ollama server.")
 def test_full_flow(user_message: str):
     """Test the complete Bob agent flow."""
     print("=" * 80)
@@ -116,6 +118,7 @@ def test_full_flow(user_message: str):
     }
 
 
+@pytest.mark.skip(reason="Skipping test that requires a running Ollama server.")
 def test_refinement_flow(original_message: str, refinement_message: str, previous_xml: str, process_type: str):
     """Test a refinement/follow-up interaction."""
     print("\n" + "=" * 80)

@@ -1,7 +1,7 @@
 def test_timed_resource_basic():
     import pytest
     simpy = pytest.importorskip("simpy")
-    from sim_dsl.resources import TimedResource
+    from agentic_process_automation.core.sim.resources import TimedResource
 
     env = simpy.Environment()
     tr = TimedResource(env, capacity=1)

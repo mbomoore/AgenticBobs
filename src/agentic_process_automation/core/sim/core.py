@@ -29,6 +29,11 @@ class State:
     # internal index will be assigned by ProcessModel when added
     index: Optional[int] = field(default=None, init=False, repr=False)
 
+    def __post_init__(self):
+        # Auto-register with the active ProcessModel context
+        if ProcessModel._active_context:
+            ProcessModel._active_context.add_state(self)
+
     @overload
     def __rshift__(self, other: float) -> "_ProbHolder":
         ...
@@ -97,25 +102,30 @@ class ProcessModel:
             s2 = State('B')
             s1 >> 1.0 >> s2
     """
+    _active_context: Optional["ProcessModel"] = None
 
     def __init__(self, name: str):
         self.name = name
         self.states: List[State] = []
         self.transitions: List[Transition] = []
+        self.states_by_name: Dict[str, State] = {}
 
     def __enter__(self):
+        ProcessModel._active_context = self
         return self
 
     def __exit__(self, exc_type, exc, tb):
         # validate transitions
         self._assign_state_indices()
         self._validate_transition_probabilities()
+        ProcessModel._active_context = None
 
     def add_state(self, state: State):
         if state in self.states:
             return
         state.index = len(self.states)
         self.states.append(state)
+        self.states_by_name[state.name] = state
 
     def add_transition(self, transition: Transition):
         # ensure states are registered

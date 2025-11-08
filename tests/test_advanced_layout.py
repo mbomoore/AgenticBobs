@@ -3,8 +3,12 @@
 Test the advanced BPMN layout algorithms with various workflow patterns.
 """
 import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+from pathlib import Path
+
+# Add the project paths to sys.path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(project_root / "backend"))
 
 from bpmn_layout import add_layout_to_bpmn
 import logging
@@ -76,8 +80,8 @@ def test_branching_workflow():
         print("✅ Layout successfully added to branching workflow")
         
         # Extract layer information
-        import xml.etree.ElementTree as ET
-        root = ET.fromstring(result)
+        from lxml import etree as ET
+        root = ET.fromstring(result.encode('utf-8'))
         bounds_elements = root.findall('.//*[@x]')
         
         # Group by x-coordinate (layers)

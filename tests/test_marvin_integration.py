@@ -34,8 +34,11 @@ def _server_reachable(base_url: str) -> bool:
 
 
 
+from agentic_process_automation.config import get_ai_config
+
 def test_agent_chat_uses_marvin_when_available(monkeypatch):
-    base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    ai_config = get_ai_config()
+    base_url = ai_config.ollama_api_url
     if not _server_reachable(base_url):
         pytest.skip(f"Ollama/OpenAI-compatible server not reachable at {base_url}")
 

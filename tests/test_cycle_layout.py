@@ -5,8 +5,12 @@ Tests the problematic cyclic workflow provided by the user.
 """
 
 import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+from pathlib import Path
+
+# Add the project paths to sys.path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(project_root / "backend"))
 
 from bpmn_layout import add_layout_to_bpmn
 

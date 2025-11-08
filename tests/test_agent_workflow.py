@@ -32,9 +32,12 @@ def _server_reachable(base_url: str) -> bool:
 
 
 
+from agentic_process_automation.config import get_ai_config
+
 def test_natural_language_input_generates_bpmn():
     """Agent should handle natural language requests and return BPMN with questions."""
-    base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    ai_config = get_ai_config()
+    base_url = ai_config.ollama_api_url
     if not _server_reachable(base_url):
         pytest.skip(f"Ollama/OpenAI-compatible server not reachable at {base_url}")
 
@@ -50,7 +53,8 @@ def test_natural_language_input_generates_bpmn():
 
 def test_uses_current_bpmn_if_present():
     """Agent should look at current BPMN and produce BPMN with follow-up questions."""
-    base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    ai_config = get_ai_config()
+    base_url = ai_config.ollama_api_url
     if not _server_reachable(base_url):
         pytest.skip(f"Ollama/OpenAI-compatible server not reachable at {base_url}")
 
@@ -64,7 +68,8 @@ def test_uses_current_bpmn_if_present():
 
 def test_generates_changes_to_align_with_instructions():
     """Agent should modify the BPMN to align with instructions (format and questions only)."""
-    base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    ai_config = get_ai_config()
+    base_url = ai_config.ollama_api_url
     if not _server_reachable(base_url):
         pytest.skip(f"Ollama/OpenAI-compatible server not reachable at {base_url}")
 
@@ -81,7 +86,8 @@ def test_generates_changes_to_align_with_instructions():
 
 def test_marvin_agent_runs_with_tools_enabled_env():
     """Agent should run end-to-end when tools are enabled via env (no introspection)."""
-    base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    ai_config = get_ai_config()
+    base_url = ai_config.ollama_api_url
     if not _server_reachable(base_url):
         pytest.skip(f"Ollama/OpenAI-compatible server not reachable at {base_url}")
 

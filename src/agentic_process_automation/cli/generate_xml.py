@@ -22,7 +22,7 @@ except ImportError:
 
 # from core.bpmn_validator import validate_bpmn_string  # TODO: Fix import issues
 
-from .common import build_model, get_empty_process_model
+from ..core.common import build_model, get_empty_process_model
 
 # Import centralized configuration
 try:

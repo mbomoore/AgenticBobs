@@ -5,9 +5,14 @@ Test script to debug the API response for follow-up questions.
 
 import requests
 import json
+from agentic_process_automation.config import get_api_config
 
-API_BASE = "http://localhost:8000/api"
+import pytest
 
+api_config = get_api_config()
+API_BASE = f"http://{api_config.host}:{api_config.port}/api"
+
+@pytest.mark.skip(reason="Skipping test that requires a running FastAPI server.")
 def test_follow_up_questions():
     print("Testing follow-up questions generation...")
     
