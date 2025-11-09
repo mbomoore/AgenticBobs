@@ -15,7 +15,11 @@ class ViewEvaluationEngine:
         Evaluates the query in the View against the Case data.
         Handles parameter substitution and simple WHERE clauses.
         """
-        query = view.query
+        # For now, we'll just use the first query in the reads list.
+        # A more robust implementation would handle multiple queries.
+        if not view.reads:
+            return []
+        query = view.reads[0]
         if params:
             for key, value in params.items():
                 if isinstance(value, str):
@@ -96,6 +100,11 @@ class ViewEvaluationEngine:
                 return [item for item in data if item.get(key) in values]
             except (ValueError, SyntaxError) as e:
                 raise ValueError(f"Malformed IN clause values: {values_str}. Error: {e}")
+
+        is_not_null_match = re.match(r"(\w+\.\w+)\s+IS\s+NOT\s+NULL", clause, re.IGNORECASE)
+        if is_not_null_match:
+            key = is_not_null_match.groups()[0].split('.')[1]
+            return [item for item in data if item.get(key) is not None]
 
         raise ValueError(f"Unsupported WHERE clause format: {clause}")
 

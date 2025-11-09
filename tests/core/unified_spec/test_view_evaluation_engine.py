@@ -2,7 +2,14 @@ import pytest
 import json
 from pathlib import Path
 
-from agentic_process_automation.core.unified_spec.models import Case, WorkGraph, View
+from agentic_process_automation.core.unified_spec.models import (
+    Case,
+    WorkGraph,
+    View,
+    WorkUnit,
+    ExecutionBinding,
+    ExecutionRule,
+)
 from agentic_process_automation.core.unified_spec.view_evaluation_engine import ViewEvaluationEngine
 
 
@@ -11,8 +18,40 @@ def rfp_triage_work_graph() -> WorkGraph:
     """Loads the RFP triage example WorkGraph."""
     filepath = Path(__file__).parent.parent.parent.parent / "examples" / "unified_spec" / "rfp_triage.json"
     with open(filepath, "r") as f:
-        data = json.load(f)
-    return WorkGraph(**data)
+        spec_dict = json.load(f)
+
+    for wu in spec_dict.get("work_units", []):
+        wu.setdefault("params", {})
+        wu.setdefault("preconditions", "True")
+        wu.setdefault("done", wu.get("done_condition", "True"))
+
+    for v_dict in spec_dict.get("views", []):
+        v_dict.setdefault("reads", [v_dict.get("query", "")])
+        v_dict.setdefault("writes", [])
+        v_dict.setdefault("invariants", [])
+
+    bindings = []
+    for b in spec_dict.get("execution_bindings", []):
+        impl_kind = b.get("executor")
+        if impl_kind == "ai_agent":
+            impl_kind = "agent"
+        bindings.append(ExecutionBinding(
+            target=b.get("goal_tag"),
+            rules=[
+                ExecutionRule(
+                    condition=b.get("condition") or "True",
+                    impl_kind=impl_kind,
+                )
+            ]
+        ))
+
+    return WorkGraph(
+        name=spec_dict.get("name"),
+        case_schema=spec_dict.get("case_schema"),
+        views=[View(**v) for v in spec_dict.get('views', [])],
+        work_units=[WorkUnit(**wu) for wu in spec_dict.get('work_units', [])],
+        execution_bindings=bindings,
+    )
 
 
 @pytest.fixture
@@ -32,7 +71,7 @@ def initial_case(rfp_triage_work_graph: WorkGraph) -> Case:
 
 def test_evaluate_view_simple_select(initial_case: Case):
     """Tests that a simple 'SELECT *' query returns all items."""
-    view = View(name="all_rfps", query="SELECT * FROM rfps")
+    view = View(name="all_rfps", reads=["SELECT * FROM rfps"])
     engine = ViewEvaluationEngine(initial_case)
 
     result = engine.evaluate_view(view)
@@ -45,7 +84,7 @@ def test_evaluate_view_simple_select(initial_case: Case):
 
 def test_evaluate_view_with_where_clause(initial_case: Case):
     """Tests a 'SELECT' query with a 'WHERE' clause."""
-    view = View(name="new_rfps", query="SELECT * FROM rfps WHERE status = 'new'")
+    view = View(name="new_rfps", reads=["SELECT * FROM rfps WHERE status = 'new'"])
     engine = ViewEvaluationEngine(initial_case)
 
     result = engine.evaluate_view(view)
@@ -58,7 +97,7 @@ def test_evaluate_view_with_where_clause(initial_case: Case):
 
 def test_evaluate_view_no_results(initial_case: Case):
     """Tests a query that should return no results."""
-    view = View(name="archived_rfps", query="SELECT * FROM rfps WHERE status = 'archived'")
+    view = View(name="archived_rfps", reads=["SELECT * FROM rfps WHERE status = 'archived'"])
     engine = ViewEvaluationEngine(initial_case)
 
     result = engine.evaluate_view(view)
@@ -68,7 +107,7 @@ def test_evaluate_view_no_results(initial_case: Case):
 
 def test_evaluate_view_nonexistent_entity_returns_empty(initial_case: Case):
     """Tests that querying a non-existent entity returns an empty list."""
-    view = View(name="clients_view", query="SELECT * FROM clients")
+    view = View(name="clients_view", reads=["SELECT * FROM clients"])
     engine = ViewEvaluationEngine(initial_case)
     result = engine.evaluate_view(view)
     assert result == []
@@ -76,7 +115,7 @@ def test_evaluate_view_nonexistent_entity_returns_empty(initial_case: Case):
 
 def test_evaluate_view_with_in_clause(initial_case: Case):
     """Tests a 'SELECT' query with a 'WHERE ... IN' clause."""
-    view = View(name="specific_rfps", query="SELECT * FROM rfps WHERE id IN [1, 3]")
+    view = View(name="specific_rfps", reads=["SELECT * FROM rfps WHERE id IN [1, 3]"])
     engine = ViewEvaluationEngine(initial_case)
 
     result = engine.evaluate_view(view)
@@ -88,7 +127,7 @@ def test_evaluate_view_with_in_clause(initial_case: Case):
 
 def test_evaluate_view_malformed_query(initial_case: Case):
     """Tests that a malformed query raises an error."""
-    view = View(name="malformed_query", query="SELECT FROM rfps")
+    view = View(name="malformed_query", reads=["SELECT FROM rfps"])
     engine = ViewEvaluationEngine(initial_case)
 
     with pytest.raises(ValueError, match="Query parsing error"):
