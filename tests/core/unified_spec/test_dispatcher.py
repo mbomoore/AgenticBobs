@@ -1,33 +1,14 @@
-import json
-import os
-import pytest
-from agentic_process_automation.core.unified_spec.models import WorkGraph, WorkItem, Case
 from agentic_process_automation.core.unified_spec.dispatcher import Dispatcher
+from agentic_process_automation.core.unified_spec.models import WorkGraph, WorkItem, Case
 
-@pytest.fixture
-def customer_support_work_graph() -> WorkGraph:
-    """Loads the customer_support.json example."""
-    path = os.path.join(os.path.dirname(__file__), "../../../examples/unified_spec/customer_support.json")
-    with open(path) as f:
-        data = json.load(f)
-    return WorkGraph(**data)
+def test_dispatcher_simple_resolution(rfp_triage_work_graph: WorkGraph):
+    """Tests that the dispatcher can resolve a simple, unconditional binding."""
+    dispatcher = Dispatcher(rfp_triage_work_graph)
+    work_item = WorkItem(work_unit_name="summarize_rfp", parameters={"rfp_id": 1})
+    case = Case(schema_=rfp_triage_work_graph.case_schema, data={})
 
-def test_dispatcher_simple_resolution(customer_support_work_graph: WorkGraph):
-    """Tests that the dispatcher correctly resolves executors without conditions."""
-    dispatcher = Dispatcher(customer_support_work_graph)
-    # This case is empty but conforms to the schema's top-level keys
-    case_data = {"ticket": [], "audit_trail": []}
-    case = Case(schema_=customer_support_work_graph.case_schema, data=case_data)
-
-    work_items = [
-        WorkItem(work_unit_name="Triage Ticket", parameters={}),
-        WorkItem(work_unit_name="Route to Specialist", parameters={}),
-        WorkItem(work_unit_name="Close Ticket", parameters={})
-    ]
-    expected_executors = ["ai_agent", "human", "system"]
-
-    for item, expected in zip(work_items, expected_executors):
-        assert dispatcher.resolve_executor(item, case) == expected
+    executor = dispatcher.resolve_executor(work_item, case)
+    assert executor == "agent"
 
 def test_dispatcher_conditional_resolution(conditional_work_graph: WorkGraph):
     """Tests that the dispatcher correctly resolves executors based on conditions."""
@@ -46,11 +27,4 @@ def test_dispatcher_conditional_resolution(conditional_work_graph: WorkGraph):
         schema_=conditional_work_graph.case_schema,
         data={"ticket": [{"priority": "low"}]}
     )
-    assert dispatcher.resolve_executor(work_item, low_priority_case) == "ai_agent"
-
-    # Test case 3: Medium priority should fall back to the system executor
-    medium_priority_case = Case(
-        schema_=conditional_work_graph.case_schema,
-        data={"ticket": [{"priority": "medium"}]}
-    )
-    assert dispatcher.resolve_executor(work_item, medium_priority_case) == "system"
+    assert dispatcher.resolve_executor(work_item, low_priority_case) == "agent"

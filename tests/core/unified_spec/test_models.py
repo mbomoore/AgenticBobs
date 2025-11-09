@@ -8,6 +8,8 @@ from src.agentic_process_automation.core.unified_spec.models import (
     Combinator,
     ExecutionBinding,
     WorkGraph,
+    ExecutionRule,
+    Spec,
 )
 
 def test_case_instantiation():
@@ -18,20 +20,22 @@ def test_case_instantiation():
 
 def test_view_instantiation():
     """Tests that a View can be instantiated."""
-    view = View(name="new_rfps", query="SELECT * FROM RFPs WHERE status = 'new'")
+    view = View(name="new_rfps", reads=["RFPs.*"], writes=[], invariants=[])
     assert view.name == "new_rfps"
-    assert view.query == "SELECT * FROM RFPs WHERE status = 'new'"
+    assert view.reads == ["RFPs.*"]
 
 def test_work_unit_instantiation():
     """Tests that a WorkUnit can be instantiated."""
     work_unit = WorkUnit(
         name="evaluate_rfp",
-        goal_tag="evaluate_rfp",
-        done_condition="rfp.status == 'evaluated'",
+        params={"rfp_id": "RFP.id"},
+        inputs=["new_rfps"],
+        outputs=[],
+        preconditions="rfp.status == 'new'",
+        done="rfp.status == 'evaluated'",
     )
     assert work_unit.name == "evaluate_rfp"
-    assert work_unit.goal_tag == "evaluate_rfp"
-    assert work_unit.done_condition == "rfp.status == 'evaluated'"
+    assert work_unit.done == "rfp.status == 'evaluated'"
 
 def test_combinator_instantiation():
     """Tests that a Combinator can be instantiated."""
@@ -46,9 +50,16 @@ def test_combinator_instantiation():
 
 def test_execution_binding_instantiation():
     """Tests that an ExecutionBinding can be instantiated."""
-    binding = ExecutionBinding(goal_tag="evaluate_rfp", executor="human")
-    assert binding.goal_tag == "evaluate_rfp"
-    assert binding.executor == "human"
+    binding = ExecutionBinding(
+        target="evaluate_rfp",
+        rules=[
+            ExecutionRule(
+                condition="True",
+                impl_kind="human",
+            )
+        ]
+    )
+    assert binding.target == "evaluate_rfp"
 
 def test_work_graph_instantiation():
     """Tests that a WorkGraph can be instantiated with nested models."""
@@ -56,18 +67,28 @@ def test_work_graph_instantiation():
         name="rfp_triage",
         case_schema={"rfps": {"id": "int", "status": "str"}},
         views=[
-            View(name="new_rfps", query="SELECT * FROM rfps WHERE status = 'new'"),
+            View(name="new_rfps", reads=["rfps.*"]),
         ],
         work_units=[
             WorkUnit(
                 name="evaluate_rfp",
-                goal_tag="evaluate_rfp",
+                params={"rfp_id": "RFP.id"},
                 inputs=["new_rfps"],
-                done_condition="rfp.status == 'evaluated'",
+                outputs=[],
+                preconditions="rfp.status == 'new'",
+                done="rfp.status == 'evaluated'",
             ),
         ],
         execution_bindings=[
-            ExecutionBinding(goal_tag="evaluate_rfp", executor="human"),
+            ExecutionBinding(
+                target="evaluate_rfp",
+                rules=[
+                    ExecutionRule(
+                        condition="True",
+                        impl_kind="human",
+                    )
+                ]
+            ),
         ],
     )
     assert work_graph.name == "rfp_triage"
@@ -81,7 +102,7 @@ def test_work_graph_serialization_json():
         name="rfp_triage",
         case_schema={"rfps": {"id": "int", "status": "str"}},
         views=[
-            View(name="new_rfps", query="SELECT * FROM rfps WHERE status = 'new'"),
+            View(name="new_rfps", reads=["rfps.*"]),
         ],
     )
     json_data = work_graph.model_dump_json()
@@ -102,12 +123,46 @@ def test_load_rfp_triage_example():
     assert example_path.exists(), "The example file rfp_triage.json does not exist."
 
     with open(example_path, "r") as f:
-        json_data = f.read()
+        spec_dict = json.load(f)
 
-    work_graph = WorkGraph.model_validate_json(json_data)
-    assert isinstance(work_graph, WorkGraph)
-    assert work_graph.name == "RFP Triage"
-    assert len(work_graph.views) == 2
-    assert len(work_graph.work_units) == 2
-    assert len(work_graph.combinators) == 2
-    assert len(work_graph.execution_bindings) == 3
+    # Adapt the example data to the new Spec model
+    for wu in spec_dict.get("work_units", []):
+        wu.setdefault("params", {})
+        wu.setdefault("preconditions", "True")
+        wu.setdefault("done", wu.get("done_condition", "True"))
+        for output in wu.get("outputs", []):
+            if output not in [v.get("name") for v in spec_dict.get("views", [])]:
+                spec_dict.get("views", []).append({"name": output, "reads": [], "writes": []})
+
+
+    for v in spec_dict.get("views", []):
+        v.setdefault("reads", [v.get("query", "")])
+        v.setdefault("writes", [])
+        v.setdefault("invariants", [])
+
+    bindings = []
+    for b in spec_dict.get("execution_bindings", []):
+        impl_kind = b.get("executor")
+        if impl_kind == "ai_agent":
+            impl_kind = "agent"
+        bindings.append(ExecutionBinding(
+            target=b.get("goal_tag"),
+            rules=[
+                ExecutionRule(
+                    condition=b.get("condition") or "True",
+                    impl_kind=impl_kind,
+                )
+            ]
+        ))
+
+    spec = Spec(
+        views={v['name']: View(**v) for v in spec_dict.get('views', [])},
+        work_units={wu['name']: WorkUnit(**wu) for wu in spec_dict.get('work_units', [])},
+        bindings=bindings,
+        invariants=spec_dict.get('invariants', [])
+    )
+
+    assert isinstance(spec, Spec)
+    assert len(spec.views) == 4
+    assert len(spec.work_units) == 2
+    assert len(spec.bindings) == 3

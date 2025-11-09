@@ -1,5 +1,13 @@
 import pytest
-from agentic_process_automation.core.unified_spec.models import Case
+from agentic_process_automation.core.unified_spec.models import (
+    Case,
+    View,
+    WorkUnit,
+    Combinator,
+    ExecutionBinding,
+    WorkGraph,
+    ExecutionRule,
+)
 
 def test_case_instantiation():
     """
@@ -54,8 +62,6 @@ def test_case_instantiation_with_invalid_data():
     case = Case(schema_=case_schema, data=case_data)
     assert case.data["clients"][0]["id"] == "not_an_int"
 
-from agentic_process_automation.core.unified_spec.models import View
-
 def test_view_instantiation():
     """
     Tests that a View can be instantiated with valid data.
@@ -63,13 +69,11 @@ def test_view_instantiation():
     """
     view = View(
         name="new_rfps",
-        query="SELECT * FROM rfps WHERE status = 'new'"
+        reads=["rfps.*"]
     )
 
     assert view.name == "new_rfps"
-    assert view.query == "SELECT * FROM rfps WHERE status = 'new'"
-
-from agentic_process_automation.core.unified_spec.models import WorkUnit
+    assert view.reads == ["rfps.*"]
 
 def test_workunit_instantiation():
     """
@@ -78,19 +82,19 @@ def test_workunit_instantiation():
     """
     work_unit = WorkUnit(
         name="evaluate_rfp",
-        goal_tag="evaluate_rfp",
+        params={},
         inputs=["new_rfps"],
         outputs=["evaluated_rfps"],
-        done_condition="rfps.status == 'evaluated'",
-        quality_condition="rfps.value > 0"
+        preconditions="True",
+        done="rfps.status == 'evaluated'",
+        quality="rfps.value > 0"
     )
 
     assert work_unit.name == "evaluate_rfp"
-    assert work_unit.goal_tag == "evaluate_rfp"
     assert work_unit.inputs == ["new_rfps"]
     assert work_unit.outputs == ["evaluated_rfps"]
-    assert work_unit.done_condition == "rfps.status == 'evaluated'"
-    assert work_unit.quality_condition == "rfps.value > 0"
+    assert work_unit.done == "rfps.status == 'evaluated'"
+    assert work_unit.quality == "rfps.value > 0"
 
 def test_workunit_optional_fields():
     """
@@ -98,18 +102,18 @@ def test_workunit_optional_fields():
     """
     work_unit = WorkUnit(
         name="evaluate_rfp",
-        goal_tag="evaluate_rfp",
-        done_condition="rfps.status == 'evaluated'"
+        params={},
+        inputs=[],
+        outputs=[],
+        preconditions="True",
+        done="rfps.status == 'evaluated'"
     )
 
     assert work_unit.name == "evaluate_rfp"
-    assert work_unit.goal_tag == "evaluate_rfp"
     assert work_unit.inputs == []
     assert work_unit.outputs == []
-    assert work_unit.done_condition == "rfps.status == 'evaluated'"
-    assert work_unit.quality_condition is None
-
-from agentic_process_automation.core.unified_spec.models import Combinator
+    assert work_unit.done == "rfps.status == 'evaluated'"
+    assert work_unit.quality is None
 
 def test_combinator_instantiation():
     """
@@ -126,37 +130,40 @@ def test_combinator_instantiation():
     assert combinator.work_unit == "evaluate_rfp"
     assert combinator.over == "new_rfps"
 
-from agentic_process_automation.core.unified_spec.models import ExecutionBinding
-
 def test_execution_binding_instantiation():
     """
     Tests that an ExecutionBinding can be instantiated with valid data.
     This test also serves as basic documentation for how to create an ExecutionBinding.
     """
     binding = ExecutionBinding(
-        goal_tag="evaluate_rfp",
-        executor="human",
-        condition="rfps.value > 10000"
+        target="evaluate_rfp",
+        rules=[
+            ExecutionRule(
+                condition="rfps.value > 10000",
+                impl_kind="human",
+            )
+        ]
     )
 
-    assert binding.goal_tag == "evaluate_rfp"
-    assert binding.executor == "human"
-    assert binding.condition == "rfps.value > 10000"
+    assert binding.target == "evaluate_rfp"
+    assert binding.rules[0].condition == "rfps.value > 10000"
 
 def test_execution_binding_optional_fields():
     """
     Tests that an ExecutionBinding can be instantiated without optional fields.
     """
     binding = ExecutionBinding(
-        goal_tag="evaluate_rfp",
-        executor="ai_agent"
+        target="evaluate_rfp",
+        rules=[
+            ExecutionRule(
+                condition="True",
+                impl_kind="agent",
+            )
+        ]
     )
 
-    assert binding.goal_tag == "evaluate_rfp"
-    assert binding.executor == "ai_agent"
-    assert binding.condition is None
-
-from agentic_process_automation.core.unified_spec.models import WorkGraph
+    assert binding.target == "evaluate_rfp"
+    assert binding.rules[0].impl_kind == "agent"
 
 def test_workgraph_instantiation():
     """
@@ -168,16 +175,17 @@ def test_workgraph_instantiation():
     }
 
     views = [
-        View(name="new_rfps", query="SELECT * FROM rfps WHERE status = 'new'")
+        View(name="new_rfps", reads=["rfps.*"])
     ]
 
     work_units = [
         WorkUnit(
             name="evaluate_rfp",
-            goal_tag="evaluate_rfp",
+            params={},
             inputs=["new_rfps"],
             outputs=[],
-            done_condition="rfps.status == 'evaluated'"
+            preconditions="True",
+            done="rfps.status == 'evaluated'"
         )
     ]
 
@@ -186,7 +194,15 @@ def test_workgraph_instantiation():
     ]
 
     execution_bindings = [
-        ExecutionBinding(goal_tag="evaluate_rfp", executor="human")
+        ExecutionBinding(
+            target="evaluate_rfp",
+            rules=[
+                ExecutionRule(
+                    condition="True",
+                    impl_kind="human",
+                )
+            ]
+        )
     ]
 
     work_graph = WorkGraph(
@@ -207,7 +223,7 @@ def test_workgraph_instantiation():
     assert len(work_graph.combinators) == 1
     assert work_graph.combinators[0].type == "map"
     assert len(work_graph.execution_bindings) == 1
-    assert work_graph.execution_bindings[0].executor == "human"
+    assert work_graph.execution_bindings[0].rules[0].impl_kind == "human"
 
 def test_unified_spec_integration():
     """
@@ -221,26 +237,28 @@ def test_unified_spec_integration():
 
     # 2. Define Views
     views = [
-        View(name="new_rfps", query="SELECT * FROM rfps WHERE status = 'new'"),
-        View(name="summarized_rfps", query="SELECT * FROM rfps WHERE status = 'summarized'"),
-        View(name="evaluated_rfps", query="SELECT * FROM evaluations")
+        View(name="new_rfps", reads=["rfps.*"]),
+        View(name="summarized_rfps", reads=["rfps.*"]),
+        View(name="evaluated_rfps", reads=["evaluations.*"])
     ]
 
     # 3. Define WorkUnits
     work_units = [
         WorkUnit(
             name="summarize_rfp",
-            goal_tag="summarize",
+            params={},
             inputs=["new_rfps"],
             outputs=["summarized_rfps"],
-            done_condition="rfps.status == 'summarized'"
+            preconditions="True",
+            done="rfps.status == 'summarized'"
         ),
         WorkUnit(
             name="evaluate_rfp",
-            goal_tag="evaluate",
+            params={},
             inputs=["summarized_rfps"],
             outputs=["evaluated_rfps"],
-            done_condition="evaluations.rfp_id == rfps.id"
+            preconditions="True",
+            done="evaluations.rfp_id == rfps.id"
         )
     ]
 
@@ -252,9 +270,33 @@ def test_unified_spec_integration():
 
     # 5. Define Execution Bindings
     execution_bindings = [
-        ExecutionBinding(goal_tag="summarize", executor="ai_agent"),
-        ExecutionBinding(goal_tag="evaluate", executor="human", condition="rfps.value > 50000"),
-        ExecutionBinding(goal_tag="evaluate", executor="ai_agent", condition="rfps.value <= 50000")
+        ExecutionBinding(
+            target="summarize",
+            rules=[
+                ExecutionRule(
+                    condition="True",
+                    impl_kind="agent",
+                )
+            ]
+        ),
+        ExecutionBinding(
+            target="evaluate",
+            rules=[
+                ExecutionRule(
+                    condition="rfps.value > 50000",
+                    impl_kind="human",
+                )
+            ]
+        ),
+        ExecutionBinding(
+            target="evaluate",
+            rules=[
+                ExecutionRule(
+                    condition="rfps.value <= 50000",
+                    impl_kind="agent",
+                )
+            ]
+        )
     ]
 
     # 6. Create the WorkGraph
@@ -282,8 +324,8 @@ def test_unified_spec_integration():
     assert evaluate_wu.inputs[0] == "summarized_rfps"
 
     summarize_binding = work_graph.execution_bindings[0]
-    assert summarize_binding.goal_tag == "summarize"
+    assert summarize_binding.target == "summarize"
 
     evaluate_binding_human = work_graph.execution_bindings[1]
-    assert evaluate_binding_human.goal_tag == "evaluate"
-    assert evaluate_binding_human.executor == "human"
+    assert evaluate_binding_human.target == "evaluate"
+    assert evaluate_binding_human.rules[0].impl_kind == "human"

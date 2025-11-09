@@ -1,18 +1,7 @@
 import pytest
-import json
-from pathlib import Path
 
 from agentic_process_automation.core.unified_spec.models import Case, WorkGraph
 from agentic_process_automation.core.unified_spec.case_state_manager import CaseStateManager
-
-
-@pytest.fixture
-def rfp_triage_work_graph() -> WorkGraph:
-    """Loads the RFP triage example WorkGraph."""
-    filepath = Path(__file__).parent.parent.parent.parent / "examples" / "unified_spec" / "rfp_triage.json"
-    with open(filepath, "r") as f:
-        data = json.load(f)
-    return WorkGraph(**data)
 
 
 @pytest.fixture

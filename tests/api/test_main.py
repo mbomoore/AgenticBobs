@@ -2,9 +2,54 @@ import json
 import os
 from fastapi.testclient import TestClient
 from agentic_process_automation.api.main import app
-from agentic_process_automation.core.unified_spec.models import WorkGraph
+from agentic_process_automation.core.unified_spec.models import (
+    WorkGraph,
+    View,
+    WorkUnit,
+    ExecutionBinding,
+    ExecutionRule,
+)
 
 client = TestClient(app)
+
+def adapt_customer_support_spec(spec_dict: dict) -> WorkGraph:
+    """Adapts the customer_support.json data to the new WorkGraph model."""
+    for wu in spec_dict.get("work_units", []):
+        wu.setdefault("params", {})
+        wu.setdefault("preconditions", "True")
+        wu.setdefault("done", wu.get("done_condition", "True"))
+        wu.setdefault("inputs", [v["name"] for v in wu.get("input_views", [])])
+        wu.setdefault("outputs", [])
+
+    for v_dict in spec_dict.get("views", []):
+        v_dict.setdefault("reads", [v_dict.get("query", "")])
+        v_dict.setdefault("writes", [])
+        v_dict.setdefault("invariants", [])
+
+    bindings = []
+    for b in spec_dict.get("execution_bindings", []):
+        impl_kind = b.get("executor")
+        if impl_kind == "ai_agent":
+            impl_kind = "agent"
+        elif impl_kind == "system":
+            impl_kind = "agent"  # Or some other default
+        bindings.append(ExecutionBinding(
+            target=b.get("goal_tag"),
+            rules=[
+                ExecutionRule(
+                    condition=b.get("condition") or "True",
+                    impl_kind=impl_kind,
+                )
+            ]
+        ))
+
+    return WorkGraph(
+        name=spec_dict.get("name"),
+        case_schema=spec_dict.get("case_schema"),
+        views=[View(**v) for v in spec_dict.get('views', [])],
+        work_units=[WorkUnit(**wu) for wu in spec_dict.get('work_units', [])],
+        execution_bindings=bindings,
+    )
 
 def test_load_workgraph():
     """Tests loading a WorkGraph."""
@@ -12,7 +57,9 @@ def test_load_workgraph():
     with open(path) as f:
         workgraph_content = json.load(f)
 
-    response = client.post("/workgraph", json={"name": "customer_support", "content": workgraph_content})
+    adapted_workgraph = adapt_customer_support_spec(workgraph_content)
+
+    response = client.post("/workgraph", json={"name": "customer_support", "content": adapted_workgraph.model_dump()})
     assert response.status_code == 200
     assert response.json() == {"message": "WorkGraph 'customer_support' loaded successfully."}
 
@@ -32,7 +79,8 @@ def create_case_and_get_id(workgraph_name: str = "customer_support") -> str:
         path = os.path.join(os.path.dirname(__file__), "../../examples/unified_spec/customer_support.json")
         with open(path) as f:
             workgraph_content = json.load(f)
-        client.post("/workgraph", json={"name": "customer_support", "content": workgraph_content})
+        adapted_workgraph = adapt_customer_support_spec(workgraph_content)
+        client.post("/workgraph", json={"name": "customer_support", "content": adapted_workgraph.model_dump()})
     # This is a bit of a hack for testing, but it works
     elif "content" in globals() and workgraph_name == "conditional_test":
         client.post("/workgraph", json={"name": "conditional_test", "content": globals()["content"]})

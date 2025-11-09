@@ -1,6 +1,58 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Literal
+from pydantic import BaseModel, Field, field_validator
+
+# ---- Core primitives ----
+
+class View(BaseModel):
+    name: str
+    reads: List[str] = Field(default_factory=list)  # e.g., ["RFP.*", "Doc.{rfp_id,kind,body}"]
+    writes: List[str] = Field(default_factory=list)  # empty => read-only
+    invariants: List[str] = Field(default_factory=list)  # simple predicates over schema
+
+class WorkUnit(BaseModel):
+    name: str
+    goal_tag: Optional[str] = None
+    params: Dict[str, str]  # param -> type or foreign key, e.g., {"rfp_id": "RFP.id"}
+    inputs: List[str]       # view names it reads
+    outputs: List[str]      # view names it writes
+    preconditions: str      # boolean expr over Case
+    done: str               # boolean expr over Case
+    quality: Optional[str] = None
+    write_set: List[str] = Field(default_factory=list)  # exact fields this WU mutates
+    side_effects: Literal["none","external_io","mutation"] = "none"
+    idempotent: bool = True
+    conflict_policy: Literal["merge","last_write_wins","fail"] = "merge"
+    termination_measure: Optional[str] = None
+
+class ExecutionRule(BaseModel):
+    condition: str      # e.g., "RFP[rfp_id].value < 50000"
+    impl_kind: Literal["human","agent","hybrid"]
+    token_limit: Optional[int] = None
+    tool_schemas: List[str] = Field(default_factory=list)
+    privacy_level: Literal["public","internal","restricted"] = "internal"
+    approval_policy: Literal["auto","human_approve"] = "auto"
+
+class ExecutionBinding(BaseModel):
+    target: str               # work unit name or goal tag
+    rules: List[ExecutionRule]
+
+class Spec(BaseModel):
+    views: Dict[str, View]
+    work_units: Dict[str, WorkUnit]
+    bindings: List[ExecutionBinding] = Field(default_factory=list)
+    invariants: List[str] = Field(default_factory=list)  # global invariants
+
+    @field_validator("work_units")
+    def _rw_views_exist(cls, wus, values):
+        if 'views' not in values.data:
+            return wus
+        views = values.data["views"]
+        for wu in wus.values():
+            for v in wu.inputs + wu.outputs:
+                if v not in views:
+                    raise ValueError(f"WorkUnit {wu.name} references missing View '{v}'")
+        return wus
 
 class Case(BaseModel):
     """
@@ -16,42 +68,6 @@ class Case(BaseModel):
         description="The actual instance data for the case, organized by entity type."
     )
 
-class View(BaseModel):
-    """
-    A functionally-inspired 'slice' or 'lens' of the world from the Case.
-    It defines what context a WorkUnit can read and what parts it is allowed to write.
-    """
-    name: str = Field(..., description="A unique name for the view.")
-    query: str = Field(
-        ...,
-        description="The query to select a slice of data from the Case. (e.g., 'SELECT * FROM RFPs WHERE status = \"new\"')."
-    )
-
-class WorkUnit(BaseModel):
-    """
-    Describes one logical, executor-agnostic step of knowledge work.
-    """
-    name: str = Field(..., description="A unique name for the work unit.")
-    goal_tag: str = Field(..., description="A semantic label for the work, e.g., 'evaluate_rfp'.")
-
-    inputs: List[str] = Field(
-        default_factory=list,
-        description="A list of View names that this work unit reads from."
-    )
-    outputs: List[str] = Field(
-        default_factory=list,
-        description="A list of View names that this work unit writes to."
-    )
-
-    done_condition: str = Field(
-        ...,
-        description="A predicate over the Case that must be true for this work unit to be considered complete."
-    )
-    quality_condition: Optional[str] = Field(
-        None,
-        description="An optional predicate over the Case that defines a quality bar for the work."
-    )
-
 class Combinator(BaseModel):
     """
     Uses functional patterns over sets of Work Units.
@@ -59,17 +75,6 @@ class Combinator(BaseModel):
     type: str = Field(..., description="The type of combinator (e.g., 'map', 'fold', 'filter').")
     work_unit: str = Field(..., description="The name of the WorkUnit to apply.")
     over: str = Field(..., description="The query or View name defining the set of items to operate on.")
-
-class ExecutionBinding(BaseModel):
-    """
-    Attaches an implementation policy to a Work Unit or goal tag.
-    """
-    goal_tag: str = Field(..., description="The goal_tag this binding applies to.")
-    executor: str = Field(..., description="The name of the executor to use (e.g., 'human', 'ai_agent', 'swarm').")
-    condition: Optional[str] = Field(
-        None,
-        description="An optional condition on the Case for this binding to be active."
-    )
 
 class WorkGraph(BaseModel):
     """
