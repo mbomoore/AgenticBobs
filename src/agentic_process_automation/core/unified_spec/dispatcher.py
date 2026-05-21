@@ -1,6 +1,22 @@
-from typing import Dict, List
-from .models import WorkGraph, WorkItem, ExecutionBinding, WorkUnit, Case, View
+from typing import Dict, List, Tuple
+
+from pydantic import BaseModel
+
+from . import guard_algebra
+from .models import Case, ExecutionBinding, View, WorkGraph, WorkItem, WorkUnit
 from .view_evaluation_engine import ViewEvaluationEngine
+
+
+class RoutingIssue(BaseModel):
+    """A potential ambiguity surfaced by `Dispatcher.check_routing_consistency`."""
+
+    target: str
+    rule_a_condition: str
+    rule_b_condition: str
+    a_impl: str
+    b_impl: str
+    message: str
+
 
 class Dispatcher:
     """
@@ -61,3 +77,45 @@ class Dispatcher:
                     continue
 
         raise ValueError(f"No matching ExecutionBinding found for target '{target}' with the current case state.")
+
+    def check_routing_consistency(self) -> List[RoutingIssue]:
+        """
+        Statically inspect bindings for routing ambiguity.
+
+        For each target, collect every (condition, impl_kind) pair from its
+        bindings and ask `guard_algebra.disjoint` whether two non-fallback
+        conditions could ever match the same Case while assigning different
+        executors. Conditions outside the symbolic fragment (e.g. raw SQL)
+        are skipped — the copilot sees only the ambiguities it can prove.
+        """
+        issues: List[RoutingIssue] = []
+        for target, bindings in self._bindings_by_target.items():
+            flat: List[Tuple[str, str]] = []
+            for binding in bindings:
+                for rule in binding.rules:
+                    if rule.condition.strip().lower() == "true":
+                        continue
+                    flat.append((rule.condition, rule.impl_kind))
+
+            for i, (cond_a, impl_a) in enumerate(flat):
+                for cond_b, impl_b in flat[i + 1 :]:
+                    if impl_a == impl_b:
+                        continue
+                    is_disjoint = guard_algebra.disjoint(cond_a, cond_b)
+                    if is_disjoint is False:
+                        issues.append(
+                            RoutingIssue(
+                                target=target,
+                                rule_a_condition=cond_a,
+                                rule_b_condition=cond_b,
+                                a_impl=impl_a,
+                                b_impl=impl_b,
+                                message=(
+                                    f"Target {target!r}: rules "
+                                    f"{cond_a!r} → {impl_a} and "
+                                    f"{cond_b!r} → {impl_b} can both match "
+                                    f"the same Case; routing is ambiguous."
+                                ),
+                            )
+                        )
+        return issues

@@ -11,6 +11,7 @@ from agentic_process_automation.core.unified_spec.models import (
 from agentic_process_automation.core.unified_spec.view_evaluation_engine import (
     ViewEvaluationEngine,
 )
+from agentic_process_automation.core.unified_spec import guard_algebra
 
 
 class Interpreter:
@@ -26,14 +27,12 @@ class Interpreter:
         self.view_map = {v.name: v for v in self.work_graph.views}
 
     def _construct_query_from_predicate(self, predicate: str) -> str:
-        """Constructs a valid SELECT query from a predicate."""
-        if "SELECT " in predicate.upper():
-            return predicate
-        match = re.match(r"(\w+)\.", predicate)
-        if not match:
-            raise ValueError(f"Invalid predicate format: '{predicate}'")
-        entity_name = match.group(1)
-        return f"SELECT 1 FROM {entity_name} WHERE {predicate}"
+        """Constructs a valid SELECT query from a predicate.
+
+        Delegates to `guard_algebra.to_sql` so the interpreter and the symbolic
+        layer agree on how predicates become queries.
+        """
+        return guard_algebra.to_sql(predicate)
 
     def _items_for_combinator(self, combinator: Combinator) -> List[Dict[str, Any]]:
         """Resolve the source items the combinator operates over."""
