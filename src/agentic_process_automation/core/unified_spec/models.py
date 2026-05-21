@@ -72,9 +72,24 @@ class Combinator(BaseModel):
     """
     Uses functional patterns over sets of Work Units.
     """
-    type: str = Field(..., description="The type of combinator (e.g., 'map', 'fold', 'filter').")
+    type: Literal["map", "fold", "filter"] = Field(
+        ...,
+        description="The type of combinator.",
+    )
     work_unit: str = Field(..., description="The name of the WorkUnit to apply.")
-    over: str = Field(..., description="The query or View name defining the set of items to operate on.")
+    over: str = Field(..., description="The View name defining the set of items to operate on.")
+    predicate: Optional[str] = Field(
+        default=None,
+        description="Boolean predicate (filter only) restricting which items the WorkUnit applies to.",
+    )
+    accumulator: Optional[str] = Field(
+        default=None,
+        description="Initial accumulator expression (fold only). Evaluated to seed the reduction.",
+    )
+    into: Optional[str] = Field(
+        default=None,
+        description="Output View name receiving the reduction result (fold only). The fold is considered done once this view yields a row.",
+    )
 
 class WorkGraph(BaseModel):
     """
